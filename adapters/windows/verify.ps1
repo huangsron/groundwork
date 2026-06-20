@@ -19,7 +19,7 @@
 .PARAMETER ExpectedCommit   optional commit SHA; verdict downgrades if HEAD != this.
 .PARAMETER PlanId           optional approved-plan id/hash, recorded in the manifest (handoff binding).
 .PARAMETER Independent      assert role separation (verifier != executor, clean checkout). Required for a PASS verdict.
-.PARAMETER RecordsDir       output dir (default <project>\_verify\<timestamp>).
+.PARAMETER RecordsDir       output dir (default <project>\_groundwork\runs\run-<utc>-<rand>).
 
 .NOTES
   Exit codes: 0 = PASS or LOCAL_CHECK; 1 = FAIL / INCONCLUSIVE / ERROR.
@@ -55,16 +55,21 @@ function Find-MSBuild {
   throw "MSBuild not found (vswhere + PATH both failed)."
 }
 
+# run records live under the project: _groundwork/runs/run-<utc>-<rand>/ (retained, policy-cleanable)
+$RunsRoot = Join-Path (Split-Path $Project -Parent) "_groundwork\runs"
+New-Item -ItemType Directory -Force -Path $RunsRoot | Out-Null
 if ([string]::IsNullOrEmpty($RecordsDir)) {
-  $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-  $RecordsDir = Join-Path (Split-Path $Project -Parent) ("_verify\{0}" -f $stamp)
+  $runId = "run-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-" + ([guid]::NewGuid().ToString("N").Substring(0,6))
+  $RecordsDir = Join-Path $RunsRoot $runId
 }
 New-Item -ItemType Directory -Force -Path $RecordsDir | Out-Null
+$LogsDir = Join-Path $RecordsDir "logs"
+New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
 $harnessHash = try { (Get-FileHash $PSCommandPath -Algorithm SHA256).Hash } catch { "" }
 
-# minimal iteration metrics: stable per-project state file auto-computes error_delta across runs
-$stateFile = Join-Path (Split-Path $Project -Parent) "_verify\iteration-state.json"
+# minimal iteration metrics: cross-run state file (at runs root) auto-computes error_delta
+$stateFile = Join-Path $RunsRoot "iteration-state.json"
 $prevErrors = $null; $iteration = 1
 if (Test-Path $stateFile) {
   try { $s = Get-Content $stateFile -Raw | ConvertFrom-Json; $prevErrors = $s.last_errors; $iteration = [int]$s.iteration + 1 } catch {}
@@ -104,7 +109,7 @@ try {
 
   function Invoke-Build($target, $logName, $label, $platform) {
     Section ("MSBuild " + $label)
-    $log = Join-Path $RecordsDir $logName
+    $log = Join-Path $LogsDir $logName
     $argStr = ('"{0}" /t:Rebuild /p:Configuration={1} /p:Platform="{2}" /nologo /v:normal /nodeReuse:false /p:UseSharedCompilation=false' -f $target, $Configuration, $platform)
     $p = Start-Process -FilePath $MSBuild -ArgumentList $argStr -NoNewWindow -Wait -PassThru -RedirectStandardOutput $log -RedirectStandardError ($log + ".stderr")
     $code = $p.ExitCode
@@ -146,7 +151,7 @@ public static class Win {
 
   # minimal metrics: errors_remaining = actual ": error " lines across build logs; error_delta vs prev run
   $errorsRemaining = 0
-  foreach ($lg in (Get-ChildItem $RecordsDir -Filter "*.log" -ErrorAction SilentlyContinue)) {
+  foreach ($lg in (Get-ChildItem $LogsDir -Filter "*.log" -ErrorAction SilentlyContinue)) {
     $errorsRemaining += (Select-String -Path $lg.FullName -Pattern ": error " -SimpleMatch -ErrorAction SilentlyContinue | Measure-Object).Count
   }
   $manifest.errors_remaining = $errorsRemaining

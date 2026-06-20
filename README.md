@@ -26,8 +26,12 @@ claude --plugin-dir "E:/work/ai/groundwork"   # 啟用（改完用 /reload-plugi
 ```
 architect → _map.md, _claims.json
 plan      → 讀 _map.md → _plan.md, _manifest.json（含核准記錄）
-verify    → 讀 _manifest.json → feedback/ledger.jsonl, _report.md
+verify    → 讀 _manifest.json → _report.md ＋ runs/run-<id>/{manifest.json, logs/} ＋ feedback/ledger.jsonl
 ```
+- **報告**（給人讀，保留）：`_map.md` `_plan.md` `_report.md` 直接在 `_groundwork/`。
+- **執行記錄/量化**（每次一個，可依策略清）：`_groundwork/runs/run-<utc>-<rand>/`（`manifest.json` ＋ `logs/`）；跨次狀態 `runs/iteration-state.json`。
+- **跨次累積**：`_groundwork/feedback/ledger.jsonl`（單一 append，每筆帶 `run_id`）。
+
 靠**穩定的產物格式**整合，**沒有 orchestrator**——四個 skill 不會自動串接，使用者決策點（核准、是否 feedback）保持顯式。
 
 ## Windows adapter（參考實作）
