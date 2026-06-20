@@ -3,3 +3,4 @@ _verify/
 _groundwork/
 *.stderr
 CLAUDE.md
+.tmp/
