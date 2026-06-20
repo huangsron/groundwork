@@ -1,7 +1,7 @@
 # Independent Verification (Phase 6) — adapter notes
 
 > **`contract.md` is authoritative.** This file is implementation notes for an adapter (the
-> reference one is `adapters/dotnet-win/verify.ps1`). Where this file and the contract
+> reference one is `adapters/windows/verify.ps1`). Where this file and the contract
 > differ, the contract wins. `LOCAL_CHECK` is a distinct "not yet independently confirmed" state,
 > **not a PASS**. Reproducible ⇒ same verdict on the **same environment** only. Redaction is
 > best-effort, not a guarantee.

@@ -23,7 +23,7 @@ across several verify runs.
 
 ## Use it
 
-Reference adapter (.NET/Windows): `adapters/dotnet-win/feedback.ps1 -Manifest <records>\manifest.json -Repo <owner/repo> -ExpectedVsActual "<one line>"`.
+Reference adapter (.NET/Windows): `adapters/windows/feedback.ps1 -Manifest <records>\manifest.json -Repo <owner/repo> -ExpectedVsActual "<one line>"`.
 For other ecosystems, follow the same contract with the environment's tools.
 
 It prints a **dedup search** (`sig:<hash>` = `category+skill+version+normalized-error`), then

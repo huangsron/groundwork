@@ -38,7 +38,7 @@ editor judging their own work.
 
 **The authoritative, language/OS-agnostic spec is `references/contract.md`** (verdict states,
 PASS predicate, manifest/ledger schema, smoke gates, redaction, signature, honest limits). Any
-adapter implements it; `adapters/dotnet-win/verify.ps1` is the **.NET/Windows reference
+adapter implements it; `adapters/windows/verify.ps1` is the **.NET/Windows reference
 adapter** (PowerShell is native there — one adapter, not the universal mechanism). When no
 matching adapter exists, follow the contract directly with the environment's own tools.
 `references/verification-harness.md` holds adapter implementation notes.

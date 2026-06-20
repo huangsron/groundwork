@@ -1,11 +1,11 @@
 # Verification Contract (language- and OS-agnostic)
 
 This contract — **not any single script** — defines what a correct verification produces. Any
-**adapter** (e.g. `adapters/dotnet-win/`) implements it with platform-native tools. When a
+**adapter** (e.g. `adapters/windows/`) implements it with platform-native tools. When a
 matching adapter exists, use it; otherwise follow this contract directly with whatever tools the
 environment provides. The contract governs *behavior and schema*; adapters govern *how*.
 
-The reference adapter `adapters/dotnet-win/*.ps1` is PowerShell because that is native to
+The reference adapter `adapters/windows/*.ps1` is PowerShell because that is native to
 Windows/.NET — it is **one adapter, not the universal mechanism**. Other ecosystems get their own.
 
 ## Verdict states (a verdict is exactly one)
