@@ -53,6 +53,20 @@ lists (full deps, schemas, file paths) into `_groundwork/`, don't inline them.
 5. **Cross-cutting concerns** — config, auth/secrets, logging, error handling, transactions, observability.
 6. **Risks & unknowns** — high coupling, single points of failure, tech debt, where evidence is thin → verification priorities.
 
+### Launch-crash probe (always check; a static scan often misses this)
+
+Flag as a **HIGH launch-crash risk**: a resource backed by a **native or external driver** —
+a DB client, a COM object, a P/Invoke / FFI wrapper, a licensed/vendor SDK — that is initialized
+**eagerly** (field initializer, constructor, or static/type initializer) rather than lazily.
+Its initializer runs **before the UI is shown**, so if the native driver/runtime is missing the
+app crashes **before any window appears**. Look for: instance/`static` fields constructed at
+declaration; such objects built in a form/page constructor or a global/singleton; type
+initializers that touch native code.
+
+Report it as a launch blocker whose fix is **lazy / guarded initialization** (construct on first
+use, inside a try) — NOT merely "verify at launch" or "set the platform bitness". This is generic
+across stacks (.NET type initializers, JVM static blocks, native dlopen at load, etc.).
+
 ## Universal (language/OS-agnostic)
 
 Model the system in **architecture concepts** — components, responsibilities, dependencies, data
