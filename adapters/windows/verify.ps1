@@ -78,7 +78,7 @@ if (Test-Path $stateFile) {
 $manifest = [ordered]@{
   verdict="ERROR"; independence=$(if($Independent){"asserted"}else{"none (LOCAL_CHECK only)"})
   plan_id=$PlanId; build_ok=$false; launch=""; window_titles=@(); crash_detected=$false
-  tree_clean=$null; source_commit=""; expected_commit=$ExpectedCommit; commit_match=$null
+  tree_clean=$null; raw_dirty=$null; source_commit=""; expected_commit=$ExpectedCommit; commit_match=$null
   harness_hash=$harnessHash; msbuild=""; msbuild_version=""
   configuration=$Configuration; project=$Project; solution=$Solution; exe=$Exe
   artifact_fresh=$null; iteration=$iteration; errors_remaining=$null; error_delta=$null
@@ -100,12 +100,15 @@ try {
   try {
     Push-Location (Split-Path $Project -Parent)
     $manifest.source_commit = (git rev-parse HEAD 2>$null)
-    $st = (git status --porcelain 2>$null)
-    $manifest.tree_clean = [string]::IsNullOrWhiteSpace($st)
+    $stRaw = (git status --porcelain 2>$null)
+    $manifest.raw_dirty = -not [string]::IsNullOrWhiteSpace($stRaw)
+    # verdict-relevant cleanliness EXCLUDES the verifier's own outputs (the run records/reports it writes)
+    $stAdj = (git status --porcelain -- . ':(exclude)_groundwork/**' ':(exclude)_verify/**' 2>$null)
+    $manifest.tree_clean = [string]::IsNullOrWhiteSpace($stAdj)
     Pop-Location
   } catch { try { Pop-Location } catch {} }
   if ($ExpectedCommit) { $manifest.commit_match = ($manifest.source_commit -eq $ExpectedCommit) }
-  Add-Sum ("Commit  : {0}  tree_clean={1}  commit_match={2}" -f $manifest.source_commit, $manifest.tree_clean, $manifest.commit_match)
+  Add-Sum ("Commit  : {0}  tree_clean(adj)={1}  raw_dirty={2}  commit_match={3}" -f $manifest.source_commit, $manifest.tree_clean, $manifest.raw_dirty, $manifest.commit_match)
 
   function Invoke-Build($target, $logName, $label, $platform) {
     Section ("MSBuild " + $label)
@@ -120,16 +123,21 @@ try {
 
   Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
 using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
-public static class Win {
+public static class GwWin {
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr p);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
   delegate bool EnumProc(IntPtr h, IntPtr p);
-  public static List<string> TitlesForPid(uint target) {
+  // one "class|title" per visible top-level window owned by the process
+  public static List<string> WindowsForPid(uint target) {
     var res = new List<string>();
     EnumWindows((h,p) => { uint pid; GetWindowThreadProcessId(h, out pid);
-      if (pid==target && IsWindowVisible(h)) { var sb=new StringBuilder(256); GetWindowText(h,sb,256); res.Add(sb.ToString()); }
+      if (pid==target && IsWindowVisible(h)) {
+        var t=new StringBuilder(256); GetWindowText(h,t,256);
+        var c=new StringBuilder(128); GetClassName(h,c,128);
+        res.Add(c.ToString()+"|"+t.ToString()); }
       return true; }, IntPtr.Zero);
     return res;
   }
@@ -174,19 +182,25 @@ public static class Win {
       $crash = ($p.ExitCode -ne 0) -or ($werNew.Count -gt 0)
       $launch = "FAIL (exited early, code=$($p.ExitCode))"
     } else {
-      try { $titles = [Win]::TitlesForPid([uint32]$p.Id) } catch { $titles = @() }
+      $entries = @()
+      try { $entries = @([GwWin]::WindowsForPid([uint32]$p.Id) | ForEach-Object {
+              $i = $_.IndexOf('|'); [pscustomobject]@{ class = $_.Substring(0,$i); title = $_.Substring($i+1) } }) } catch { $entries = @() }
+      $titles = @($entries | ForEach-Object { $_.title })
+      $nonDialog = @($entries | Where-Object { $_.class -ne '#32770' })   # #32770 = Win32 dialog / MessageBox
       Start-Sleep -Seconds $MinStableSeconds; $p.Refresh()
       $stable = -not $p.HasExited
-      $titleOk = ($ExpectedWindowTitle -eq "") -or ($titles | Where-Object { $_ -match $ExpectedWindowTitle })
+      $titleHit = $titles | Where-Object { $_ -match $ExpectedWindowTitle }
       if ($werNew.Count -gt 0) { $crash = $true; $launch = "FAIL (WER/crash dialog detected)" }
       elseif (-not $stable) { $launch = "FAIL (window appeared then process died)" }
-      elseif ($titles.Count -gt 0 -and $titleOk) { $launch = "PASS (alive; top-level window present)"; $limitations.Add("Window presence != functional; tray/message-only windows can pass this gate.") }
-      elseif ($titles.Count -gt 0) { $launch = "FAIL (window title did not match /$ExpectedWindowTitle/)" }
+      elseif ($ExpectedWindowTitle -ne "" -and $titleHit) { $launch = "PASS (expected window matched)" }
+      elseif ($ExpectedWindowTitle -ne "") { $launch = "FAIL (no window matched /$ExpectedWindowTitle/)" }
+      elseif ($nonDialog.Count -gt 0) { $launch = "PASS (credible app window present)"; $limitations.Add("Window present != end-to-end functional.") }
+      elseif ($entries.Count -gt 0) { $launch = "INCONCLUSIVE (only dialog/MessageBox window(s) -- could be the real UI or an error popup; pass -ExpectedWindowTitle to confirm)" }
       else { $launch = "WEAK (alive but no visible top-level window within ${LaunchSeconds}s)" }
       try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
       if ($appName) { Get-Process -Name $appName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     }
-    $manifest.launch = $launch; $manifest.window_titles = $titles; $manifest.crash_detected = $crash
+    $manifest.launch = $launch; $manifest.window_titles = $titles; $manifest.window_classes = @($entries | ForEach-Object { $_.class }); $manifest.crash_detected = $crash
     $shownTitles = ($titles | Where-Object { $_ }) -join ' | '
     Add-Sum ("LAUNCH: {0}  fresh={1}  windowCount={2}  titles=[{3}]" -f $launch, $fresh, $titles.Count, $shownTitles)
   }
@@ -194,7 +208,7 @@ public static class Win {
   # verdict
   $gatesOk = $buildOK -and (($launch -like "PASS*") -or (-not $Exe)) -and (-not $crash)
   if (-not $gatesOk) {
-    $verdict = $(if ($launch -like "WEAK*") {"INCONCLUSIVE"} else {"FAIL"})
+    $verdict = $(if ($launch -like "WEAK*" -or $launch -like "INCONCLUSIVE*") {"INCONCLUSIVE"} else {"FAIL"})
   } elseif (-not $Independent) {
     $verdict = "LOCAL_CHECK"; $limitations.Add("No role separation asserted (-Independent not set): not an independent PASS.")
   } elseif ($manifest.tree_clean -eq $false) {

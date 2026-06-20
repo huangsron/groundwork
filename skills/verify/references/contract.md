@@ -24,7 +24,8 @@ Windows/.NET — it is **one adapter, not the universal mechanism**. Other ecosy
 ```
 PASS =
   independent verifier (≠ the actor that made the change)
-  AND clean checkout (no uncommitted edits)
+  AND clean checkout — no uncommitted edits OTHER than the verifier's own run records/reports
+      (judge cleanliness EXCLUDING tool output; report raw dirtiness separately)
   AND source commit == the approved commit (if an approved commit was given)
   AND adapter/harness identity recorded (hash) for audit
   AND build exit == 0 (0 compiler/build errors)
@@ -56,7 +57,7 @@ Required fields (types): `verdict` (string enum above), `independence` (`subagen
 |------|------------------------------|
 | Library | compiles; tests pass; (optional) API/ABI unchanged |
 | CLI | expected exit code; stdout matches the agreed contract |
-| **GUI** | process alive **and** a real top-level window owned by the process **and** (if known) title/class matches **and** no crash/error dialog, observed after a startup timeout and stable for a minimum duration. *Process-alive alone is necessary, not sufficient.* |
+| **GUI** | process alive **and positive evidence of a usable app UI**: a credible top-level application window owned by the process, stable for a minimum duration, no crash/WER. *A window that is ONLY an error/MessageBox-style dialog is ambiguous → `INCONCLUSIVE`, not PASS, unless an expected title/class confirms it.* Process-alive alone is necessary, not sufficient. |
 | Service | port open / health endpoint OK / startup within timeout |
 | Web | builds; server reaches readiness; HTTP smoke passes |
 | Native | links; architecture matches; runs (or emulator gate) |
