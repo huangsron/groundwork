@@ -74,8 +74,34 @@ generic autonomy, or past authorization do NOT count as approval.
 - Planning to stub/reconstruct a dependency you have NOT searched disk + git history for
 - Treating "don't ask" as approval
 
-## Report format
+## `_plan.md` layout (what the user reads — decide "do I approve this?")
 
-Lead with a **summary**: the blockers, the proposed disposition per dependency (with
-provenance), the success level, and open risks. Details after: dependency matrix, evidence.
-Then request approval.
+The user must be able to sign off: for every fix they see the root cause, what it touches, and
+what happens if it's wrong. Skeleton:
+```
+# Repair plan
+
+## Summary            (N fixes, blast radius, overall risk)
+
+## Open questions     (must be resolved BEFORE approval — list them above the approval box)
+1. …
+
+## Fixes
+### F-01: <title>
+- Root cause:        (one sentence — not a symptom)
+- Evidence:          (file:line / log)
+- Disposition:       (what to do; which files; per restoration priority)
+- Predicted result:
+- Risk:              (what a wrong/unexpected change does)
+- Allowed to touch:  (the boundary; beyond it needs re-approval)
+
+## Excluded (deliberately NOT touched this round)   ← prevents misunderstanding
+
+## Approval decision
+- [ ] Approve all
+- [ ] Approve except: ___
+- [ ] Reject, reason: ___
+- [ ] Need more info: ___
+```
+Every fix needs all six fields or it isn't approvable. Link the full dependency matrix / evidence
+into `_groundwork/`; don't inline diffs or long alternatives.

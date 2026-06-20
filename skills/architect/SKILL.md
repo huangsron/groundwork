@@ -20,7 +20,30 @@ Write to `<project>/_groundwork/`:
 - `_map.md` — the briefing (sections below). Lead with a 3–5 sentence plain-language summary.
 - `_claims.json` — one list of claims, each `{ text, kind: fact|inference|unknown, evidence, confidence }`. (One file with a `kind` field — not separate claims/verdicts/audit files.)
 
-## Briefing sections (minimum; trim detail to an appendix)
+## `_map.md` layout (what the user reads — decide "is this worth taking on, where are the traps")
+
+Lead with the decision part; push detail down. Skeleton:
+```
+# System map
+
+> One sentence: type, size, main stack.
+
+## Risk traffic-lights        (the part a user reads in 30 seconds)
+| Level | Risk | Basis |
+|-------|------|-------|
+| HIGH/MED/LOW | one line | direct-read / inference / unknown |   ← show credibility, simplified
+
+## Component sketch           (ASCII or bullets; main parts + boundaries — not a file list)
+
+## Not analyzed / unknowns    (what you could NOT see — be honest)
+
+## Details (reference, skippable) — the briefing sections below
+```
+Show a simplified credibility tag on each risk (`direct-read` vs `inference` vs `unknown`) so the
+user knows what to trust vs verify. Link long lists (full deps, schemas, file paths) into
+`_groundwork/`, don't inline them.
+
+## Briefing sections (the "Details" body; minimum; trim to an appendix)
 
 1. **System positioning & boundary** — purpose, users, core capabilities, in/out of scope, architecture style.
 2. **Components & responsibilities** — main layers/subsystems, each one's job, dependency direction. *Not a per-file dump.*

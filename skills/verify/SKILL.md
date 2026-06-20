@@ -87,11 +87,34 @@ Every loop adds: evidence → root-cause hypothesis → predicted fix → (appro
 - Reporting "launches" when only the process (not a window) was observed
 - Scorecard flat/worse for 2 loops and still hand-patching errors
 
-## Report format
+## `_report.md` layout (what the user reads — decide "did it work, can I trust it, what's unverified")
 
-Lead with the **summary**: `PASS / FAIL / BLOCKED`, independence level
-(`subagent / process-separated / CI`), goals met, what was NOT verified, approved residual
-risks. Details after: scorecard, dependency dispositions, changes, commands, logs, evidence hashes.
+Lead with a verdict the user cannot misread. Skeleton:
+```
+# Verification report
+
+Result: LOCAL_CHECK (partial verification)        ← plain words, not just the acronym
+Env: <date> / <OS> / <conditions, e.g. no access to production DB>   ·   independence: <subagent/CI/none>
+
+(one line per verdict: PASS = all targets verified in this env; LOCAL_CHECK = passed here but not
+independently/in production; FAIL = a target failed; BLOCKED = could not run — env/access missing.)
+
+## Per-item results   (one row per approved fix)
+| Item | Result | Evidence (summary) |
+
+## Verification scope   (three columns — keep them SEPARATE; merging them misleads)
+- Verified:
+- NOT verified:
+- Residual risk:
+
+## Honest limits   (3–5 lines, mandatory)
+- LOCAL_CHECK is NOT a PASS. Reproducible ⇒ same verdict on the SAME environment only.
+- Redaction (if any) is best-effort. Independence level stated above.
+
+## Full evidence → _groundwork/evidence/   (logs/manifest by link, not inlined)
+```
+`LOCAL_CHECK` must never be presented as a pass. Put only "summary + why the evidence is
+credible" in the body; link the raw logs/manifest.
 
 ## Collect (automatic) → feedback (separate skill)
 
