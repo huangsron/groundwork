@@ -1,0 +1,4 @@
+# per-run / per-project outputs (created inside TARGET projects, never the plugin)
+_verify/
+_groundwork/
+*.stderr

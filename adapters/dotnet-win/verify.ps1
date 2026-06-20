@@ -1,0 +1,216 @@
+<#
+.SYNOPSIS
+  Reusable, role-separated build + launch verifier for .NET / MSBuild projects.
+  Reference Phase-6 harness for the /groundwork:verify skill.
+
+  Run by an INDEPENDENT verifier (not the agent that edited the code), on a CLEAN checkout.
+  Without -Independent the best possible verdict is LOCAL_CHECK, never PASS.
+  Same source + same harness => same verdict.
+
+  ASCII-only: Windows PowerShell 5.1 reads .ps1 as ANSI; non-ASCII comments corrupt parsing.
+
+.PARAMETER Project          .csproj (built Platform "AnyCPU").
+.PARAMETER Solution         optional .sln (built Platform "Any CPU").
+.PARAMETER Exe              produced exe for the GUI gate; omit to skip launch (e.g. success level "compiles").
+.PARAMETER Configuration    Debug | Release (default Debug).
+.PARAMETER LaunchSeconds    startup timeout before window check (default 20; raise for apps that block on DB/network).
+.PARAMETER MinStableSeconds re-check window still present after this many more seconds (default 2).
+.PARAMETER ExpectedWindowTitle  optional regex a top-level window title must match.
+.PARAMETER ExpectedCommit   optional commit SHA; verdict downgrades if HEAD != this.
+.PARAMETER PlanId           optional approved-plan id/hash, recorded in the manifest (handoff binding).
+.PARAMETER Independent      assert role separation (verifier != executor, clean checkout). Required for a PASS verdict.
+.PARAMETER RecordsDir       output dir (default <project>\_verify\<timestamp>).
+
+.NOTES
+  Exit codes: 0 = PASS or LOCAL_CHECK; 1 = FAIL / INCONCLUSIVE / ERROR.
+  Read manifest.json (verdict field) for the distinction.
+#>
+param(
+  [Parameter(Mandatory=$true)][string]$Project,
+  [string]$Solution = "",
+  [string]$Exe = "",
+  [string]$Configuration = "Debug",
+  [int]$LaunchSeconds = 20,
+  [int]$MinStableSeconds = 2,
+  [string]$ExpectedWindowTitle = "",
+  [string]$ExpectedCommit = "",
+  [string]$PlanId = "",
+  [switch]$Independent,
+  [string]$RecordsDir = ""
+)
+$ErrorActionPreference = "Stop"
+$Summary = [System.Collections.Generic.List[string]]::new()
+$limitations = [System.Collections.Generic.List[string]]::new()   # List => empty serializes as [] not null
+function Section($t) { Write-Host "`n==== $t ====" -ForegroundColor Cyan }
+function Add-Sum($s) { $Summary.Add($s); Write-Host $s }
+
+function Find-MSBuild {
+  $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+  if (Test-Path $vswhere) {
+    $p = & $vswhere -latest -prerelease -products * -find "MSBuild\**\Bin\MSBuild.exe" 2>$null | Select-Object -First 1
+    if ($p -and (Test-Path $p)) { return $p }
+  }
+  $g = Get-Command MSBuild.exe -ErrorAction SilentlyContinue
+  if ($g) { return $g.Source }
+  throw "MSBuild not found (vswhere + PATH both failed)."
+}
+
+if ([string]::IsNullOrEmpty($RecordsDir)) {
+  $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+  $RecordsDir = Join-Path (Split-Path $Project -Parent) ("_verify\{0}" -f $stamp)
+}
+New-Item -ItemType Directory -Force -Path $RecordsDir | Out-Null
+
+$harnessHash = try { (Get-FileHash $PSCommandPath -Algorithm SHA256).Hash } catch { "" }
+
+# minimal iteration metrics: stable per-project state file auto-computes error_delta across runs
+$stateFile = Join-Path (Split-Path $Project -Parent) "_verify\iteration-state.json"
+$prevErrors = $null; $iteration = 1
+if (Test-Path $stateFile) {
+  try { $s = Get-Content $stateFile -Raw | ConvertFrom-Json; $prevErrors = $s.last_errors; $iteration = [int]$s.iteration + 1 } catch {}
+}
+
+$manifest = [ordered]@{
+  verdict="ERROR"; independence=$(if($Independent){"asserted"}else{"none (LOCAL_CHECK only)"})
+  plan_id=$PlanId; build_ok=$false; launch=""; window_titles=@(); crash_detected=$false
+  tree_clean=$null; source_commit=""; expected_commit=$ExpectedCommit; commit_match=$null
+  harness_hash=$harnessHash; msbuild=""; msbuild_version=""
+  configuration=$Configuration; project=$Project; solution=$Solution; exe=$Exe
+  artifact_fresh=$null; iteration=$iteration; errors_remaining=$null; error_delta=$null
+  records_dir=$RecordsDir; limitations=$limitations
+}
+try {
+  $MSBuild = Find-MSBuild
+  $manifest.msbuild = $MSBuild
+  try { $manifest.msbuild_version = (& $MSBuild -version -nologo 2>$null | Select-Object -Last 1) } catch {}
+
+  Section "Preflight"
+  Add-Sum ("MSBuild : {0}  ({1})" -f $MSBuild, $manifest.msbuild_version)
+  Add-Sum ("Project : {0}" -f $Project)
+  if ($Solution) { Add-Sum ("Solution: {0}" -f $Solution) }
+  Add-Sum ("PlanId  : {0}" -f $PlanId)
+  Add-Sum ("Harness : {0}" -f $harnessHash)
+  Add-Sum ("Independent: {0}" -f $manifest.independence)
+
+  try {
+    Push-Location (Split-Path $Project -Parent)
+    $manifest.source_commit = (git rev-parse HEAD 2>$null)
+    $st = (git status --porcelain 2>$null)
+    $manifest.tree_clean = [string]::IsNullOrWhiteSpace($st)
+    Pop-Location
+  } catch { try { Pop-Location } catch {} }
+  if ($ExpectedCommit) { $manifest.commit_match = ($manifest.source_commit -eq $ExpectedCommit) }
+  Add-Sum ("Commit  : {0}  tree_clean={1}  commit_match={2}" -f $manifest.source_commit, $manifest.tree_clean, $manifest.commit_match)
+
+  function Invoke-Build($target, $logName, $label, $platform) {
+    Section ("MSBuild " + $label)
+    $log = Join-Path $RecordsDir $logName
+    $argStr = ('"{0}" /t:Rebuild /p:Configuration={1} /p:Platform="{2}" /nologo /v:normal /nodeReuse:false /p:UseSharedCompilation=false' -f $target, $Configuration, $platform)
+    $p = Start-Process -FilePath $MSBuild -ArgumentList $argStr -NoNewWindow -Wait -PassThru -RedirectStandardOutput $log -RedirectStandardError ($log + ".stderr")
+    $code = $p.ExitCode
+    $errs = if (Test-Path $log) { (Select-String -Path $log -Pattern ": error " -SimpleMatch -ErrorAction SilentlyContinue | Measure-Object).Count } else { -1 }
+    Add-Sum ("[{0}] exit={1} errorLines={2}  log={3}" -f $label, $code, $errs, (Split-Path $log -Leaf))
+    if ($code -ne 0) { return 1 } else { return $errs }
+  }
+
+  Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
+using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
+public static class Win {
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr p);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  delegate bool EnumProc(IntPtr h, IntPtr p);
+  public static List<string> TitlesForPid(uint target) {
+    var res = new List<string>();
+    EnumWindows((h,p) => { uint pid; GetWindowThreadProcessId(h, out pid);
+      if (pid==target && IsWindowVisible(h)) { var sb=new StringBuilder(256); GetWindowText(h,sb,256); res.Add(sb.ToString()); }
+      return true; }, IntPtr.Zero);
+    return res;
+  }
+}
+'@
+
+  $appName = if ($Exe) { [System.IO.Path]::GetFileNameWithoutExtension($Exe) } else { "" }
+  if ($appName) { Get-Process -Name $appName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+  if ($Exe -and (Test-Path $Exe)) { Remove-Item $Exe -Force -ErrorAction SilentlyContinue }
+
+  $buildStart = Get-Date
+  $csprojLog = ((Split-Path $Project -Leaf) -replace '\.csproj$','') + "-csproj.log"
+  $csErrs  = Invoke-Build $Project $csprojLog "csproj" "AnyCPU"
+  $slnErrs = 0
+  if ($Solution) { $slnErrs = Invoke-Build $Solution "sln.log" "sln" "Any CPU" }
+  $buildOK = ($csErrs -eq 0 -and $slnErrs -eq 0)
+  $manifest.build_ok = $buildOK
+  Add-Sum ("BUILD: {0}" -f ($(if ($buildOK) {"PASS (0 errors)"} else {"FAIL"})))
+
+  # minimal metrics: errors_remaining = actual ": error " lines across build logs; error_delta vs prev run
+  $errorsRemaining = 0
+  foreach ($lg in (Get-ChildItem $RecordsDir -Filter "*.log" -ErrorAction SilentlyContinue)) {
+    $errorsRemaining += (Select-String -Path $lg.FullName -Pattern ": error " -SimpleMatch -ErrorAction SilentlyContinue | Measure-Object).Count
+  }
+  $manifest.errors_remaining = $errorsRemaining
+  if ($null -ne $prevErrors) { $manifest.error_delta = $errorsRemaining - [int]$prevErrors }
+  try { @{ last_errors=$errorsRemaining; iteration=$iteration } | ConvertTo-Json | Out-File $stateFile -Encoding utf8 } catch {}
+  Add-Sum ("METRICS: iteration={0} errors_remaining={1} error_delta={2}" -f $iteration, $errorsRemaining, $manifest.error_delta)
+
+  $launch = "SKIPPED"; $titles = @(); $crash = $false; $fresh = $null
+  if ($buildOK -and $Exe) {
+    Section "Launch verify"
+    if (-not (Test-Path $Exe)) { throw "exe not produced: $Exe" }
+    $fresh = ((Get-Item $Exe).LastWriteTime -ge $buildStart); $manifest.artifact_fresh = $fresh
+    # baseline WER set: only NEW WerFault processes count as a crash of our app
+    $werBefore = @(Get-Process -Name "WerFault","WerFault64" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+    $p = Start-Process -FilePath $Exe -WorkingDirectory (Split-Path $Exe -Parent) -PassThru
+    Start-Sleep -Seconds $LaunchSeconds
+    $p.Refresh()
+    $werNew = @(Get-Process -Name "WerFault","WerFault64" -ErrorAction SilentlyContinue | Where-Object { $_.Id -notin $werBefore })
+    if ($p.HasExited) {
+      $crash = ($p.ExitCode -ne 0) -or ($werNew.Count -gt 0)
+      $launch = "FAIL (exited early, code=$($p.ExitCode))"
+    } else {
+      try { $titles = [Win]::TitlesForPid([uint32]$p.Id) } catch { $titles = @() }
+      Start-Sleep -Seconds $MinStableSeconds; $p.Refresh()
+      $stable = -not $p.HasExited
+      $titleOk = ($ExpectedWindowTitle -eq "") -or ($titles | Where-Object { $_ -match $ExpectedWindowTitle })
+      if ($werNew.Count -gt 0) { $crash = $true; $launch = "FAIL (WER/crash dialog detected)" }
+      elseif (-not $stable) { $launch = "FAIL (window appeared then process died)" }
+      elseif ($titles.Count -gt 0 -and $titleOk) { $launch = "PASS (alive; top-level window present)"; $limitations.Add("Window presence != functional; tray/message-only windows can pass this gate.") }
+      elseif ($titles.Count -gt 0) { $launch = "FAIL (window title did not match /$ExpectedWindowTitle/)" }
+      else { $launch = "WEAK (alive but no visible top-level window within ${LaunchSeconds}s)" }
+      try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
+      if ($appName) { Get-Process -Name $appName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    }
+    $manifest.launch = $launch; $manifest.window_titles = $titles; $manifest.crash_detected = $crash
+    $shownTitles = ($titles | Where-Object { $_ }) -join ' | '
+    Add-Sum ("LAUNCH: {0}  fresh={1}  windowCount={2}  titles=[{3}]" -f $launch, $fresh, $titles.Count, $shownTitles)
+  }
+
+  # verdict
+  $gatesOk = $buildOK -and (($launch -like "PASS*") -or (-not $Exe)) -and (-not $crash)
+  if (-not $gatesOk) {
+    $verdict = $(if ($launch -like "WEAK*") {"INCONCLUSIVE"} else {"FAIL"})
+  } elseif (-not $Independent) {
+    $verdict = "LOCAL_CHECK"; $limitations.Add("No role separation asserted (-Independent not set): not an independent PASS.")
+  } elseif ($manifest.tree_clean -eq $false) {
+    $verdict = "LOCAL_CHECK"; $limitations.Add("Working tree dirty: not a clean-checkout PASS.")
+  } elseif ($ExpectedCommit -and ($manifest.commit_match -ne $true)) {
+    $verdict = "LOCAL_CHECK"; $limitations.Add("HEAD does not match ExpectedCommit: not verifying the approved commit.")
+  } else {
+    $verdict = "PASS"
+  }
+  $manifest.verdict = $verdict
+} catch {
+  $manifest.verdict = "ERROR"; $limitations.Add("harness error: " + $_.Exception.Message)
+  Add-Sum ("HARNESS ERROR: " + $_.Exception.Message)
+} finally {
+  $mPath = Join-Path $RecordsDir "manifest.json"
+  $manifest | ConvertTo-Json -Depth 6 | Out-File $mPath -Encoding utf8
+  $Summary -join "`r`n" | Out-File (Join-Path $RecordsDir "summary.txt") -Encoding utf8
+  # auto-collect (platform-free, local ledger). Best-effort: never affects the verdict.
+  try { & "$PSScriptRoot\collect.ps1" -Manifest $mPath | Out-Null } catch {}
+  Section "Summary"
+  Write-Host ("VERDICT: {0}" -f $manifest.verdict)
+  Write-Host ("Evidence: {0}" -f $RecordsDir)
+}
+if ($manifest.verdict -eq "PASS" -or $manifest.verdict -eq "LOCAL_CHECK") { exit 0 } else { exit 1 }

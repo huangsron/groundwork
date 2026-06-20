@@ -1,0 +1,103 @@
+<#
+.SYNOPSIS
+  GitHub-issue publish helper for groundwork feedback. The user runs this AFTER a verify run
+  and DECIDES whether to open an issue. It does NOT file anything by itself.
+
+  Auto-collection is separate (collect.ps1, run every verify). This script only helps PUBLISH:
+  it reuses collect.ps1 to build a REDACTED record, then offers two ways to open an issue --
+  (A) a ready-to-paste `gh` command, or (B) a prefilled GitHub "new issue" URL for the browser --
+  plus a dedup search. Either way you end with an issue URL.
+
+  ASCII-only.
+
+.PARAMETER Manifest          path to manifest.json from verify.ps1
+.PARAMETER Repo              GitHub "owner/name"
+.PARAMETER SkillVersion      default "0.1.0"
+.PARAMETER ExpectedVsActual  one-line description
+.PARAMETER LabelPrefix       default "skill:"
+#>
+param(
+  [Parameter(Mandatory=$true)][string]$Manifest,
+  [string]$Repo = "<owner/repo>",
+  [string]$SkillVersion = "0.1.0",
+  [string]$ExpectedVsActual = "",
+  [string]$LabelPrefix = "skill:"
+)
+$ErrorActionPreference = "Stop"
+
+function Redact([string]$s) {
+  if ($null -eq $s) { return "" }
+  $s = [regex]::Replace($s, '[A-Za-z]:\\[^\s"]+', '<path>')
+  $s = [regex]::Replace($s, '/(home|Users)/[^\s"]+', '<path>')
+  $s = [regex]::Replace($s, '\b\d{1,3}(\.\d{1,3}){3}\b', '<ip>')
+  $s = [regex]::Replace($s, '(?i)(password|secret|token|api[_-]?key|bearer)\s*[:=]\s*\S+', '$1=<redacted>')
+  return $s
+}
+
+# reuse the collector to build the redacted record (do NOT append again; verify already collected)
+$rec = & "$PSScriptRoot\collect.ps1" -Manifest $Manifest -SkillVersion $SkillVersion -NoAppend | ConvertFrom-Json
+
+$triggered = ($rec.verdict -in @("FAIL","INCONCLUSIVE")) -or ($rec.crash_detected -eq $true) -or ([int]$rec.false_verdict -gt 0)
+if (-not $triggered) {
+  Write-Host "No feedback trigger (verdict=$($rec.verdict), crash=$($rec.crash_detected), false_verdict=$($rec.false_verdict)). Nothing to publish."
+  exit 0
+}
+
+$dir   = Split-Path $Manifest -Parent
+$sig   = $rec.signature
+$cat   = $rec.category
+$title = "[groundwork] $cat (sig:$sig)"
+$eva   = Redact $ExpectedVsActual
+
+$snapshot = [ordered]@{
+  verdict=$rec.verdict; errors_remaining=$rec.errors_remaining; error_delta=$rec.error_delta
+  iteration=$rec.iteration; crash_detected=$rec.crash_detected; false_verdict=$rec.false_verdict
+  harness_hash=$rec.harness_hash
+}
+$bodyFull = @"
+**sig:** $sig
+**skill:** $($rec.skill_name) @ $($rec.skill_version)
+**category:** $cat
+**expected vs actual:** $eva
+
+**error pattern (redacted):**
+``````
+$($rec.error_pattern)
+``````
+
+**manifest snapshot:**
+``````json
+$($snapshot | ConvertTo-Json -Depth 4)
+``````
+_Filed by groundwork feedback (redacted: no paths/code/secrets)._
+"@
+
+$bodyMd = Join-Path $dir "feedback_body.md"
+$bodyFull | Out-File $bodyMd -Encoding utf8
+($rec | ConvertTo-Json -Depth 5) | Out-File (Join-Path $dir "feedback_draft.json") -Encoding utf8
+
+# short body for the prefilled URL (URLs have length limits; full body lives in --body-file)
+$bodyShort = "sig: $sig`ncategory: $cat`nexpected vs actual: $eva`nerror: $($rec.error_pattern)`nverdict: $($rec.verdict)  errors_remaining: $($rec.errors_remaining)  delta: $($rec.error_delta)"
+$encTitle = [uri]::EscapeDataString($title)
+$encBody  = [uri]::EscapeDataString($bodyShort)
+$encLabel = [uri]::EscapeDataString("$LabelPrefix$($rec.skill_name),category:$cat")
+$newUrl   = "https://github.com/$Repo/issues/new?title=$encTitle&body=$encBody&labels=$encLabel"
+
+Write-Host ""
+Write-Host "Feedback draft ready (you decide whether to open an issue):" -ForegroundColor Cyan
+Write-Host "  body : $bodyMd"
+Write-Host ""
+Write-Host "0) DEDUP first - is it already reported?" -ForegroundColor Yellow
+Write-Host "   gh issue list --repo $Repo --state open --search `"sig:$sig in:title`""
+Write-Host ""
+Write-Host "A) Open via gh CLI (prints the new issue URL on success):" -ForegroundColor Yellow
+Write-Host "   gh issue create --repo $Repo --title `"$title`" --body-file `"$bodyMd`" --label `"$LabelPrefix$($rec.skill_name)`" --label `"category:$cat`""
+Write-Host ""
+Write-Host "B) Or open in the browser with a PREFILLED issue (no gh needed):" -ForegroundColor Yellow
+Write-Host "   $newUrl"
+Write-Host ""
+Write-Host "If dedup found an open issue N, comment instead:" -ForegroundColor DarkGray
+Write-Host "   gh issue comment N --repo $Repo --body-file `"$bodyMd`""
+Write-Host ""
+Write-Host "(Nothing is filed automatically. After creating, keep the issue URL.)" -ForegroundColor DarkGray
+exit 0
