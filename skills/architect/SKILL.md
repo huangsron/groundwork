@@ -37,13 +37,14 @@ Lead with the decision part; push detail down. Skeleton:
 
 ## Not analyzed / unknowns    (what you could NOT see — be honest)
 
-## Details (reference, skippable) — the briefing sections below
+## Details → `_groundwork/_map-detail.md`   (link only — keep the full briefing OUT of the decision view)
 ```
-Show a simplified credibility tag on each risk (`direct-read` vs `inference` vs `unknown`) so the
-user knows what to trust vs verify. Link long lists (full deps, schemas, file paths) into
-`_groundwork/`, don't inline them.
+Keep `_map.md` to the decision view above; write the full 6-section briefing to a separate
+`_groundwork/_map-detail.md` and link it. Show a simplified credibility tag on each risk
+(`direct-read` vs `inference` vs `unknown`) so the user knows what to trust vs verify. Link long
+lists (full deps, schemas, file paths) into `_groundwork/`, don't inline them.
 
-## Briefing sections (the "Details" body; minimum; trim to an appendix)
+## Briefing sections (write these into `_map-detail.md`; minimum; trim to an appendix)
 
 1. **System positioning & boundary** — purpose, users, core capabilities, in/out of scope, architecture style.
 2. **Components & responsibilities** — main layers/subsystems, each one's job, dependency direction. *Not a per-file dump.*

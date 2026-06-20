@@ -95,6 +95,11 @@ what happens if it's wrong. Skeleton:
 - Risk:              (what a wrong/unexpected change does)
 - Allowed to touch:  (the boundary; beyond it needs re-approval)
 
+## Discovered at verify (needs re-approval)   ← starts empty; verify routes new facts here
+(If /groundwork:verify uncovers a required fix not in the original plan — e.g. a launch-time
+crash a static scan could not predict — add it here as a new F-xx and re-approve. Do NOT bury it
+in another fix.)
+
 ## Excluded (deliberately NOT touched this round)   ← prevents misunderstanding
 
 ## Approval decision
