@@ -19,6 +19,7 @@
 .PARAMETER ExpectedCommit   optional commit SHA; verdict downgrades if HEAD != this.
 .PARAMETER PlanId           optional approved-plan id/hash, recorded in the manifest (handoff binding).
 .PARAMETER Independent      assert role separation (verifier != executor, clean checkout). Required for a PASS verdict.
+.PARAMETER DismissStartupDialogs  opt-in: send ENTER to ONE expected startup #32770 dialog, then check for the app's REAL window. For legacy apps that show an expected/benign warning (e.g. DB-unavailable in an offline test env) before their UI. Recorded as a limitation; pair with -ExpectedWindowTitle so PASS lands on the real window, not the dialog.
 .PARAMETER RecordsDir       output dir (default <project>\_groundwork\runs\run-<utc>-<rand>).
 
 .NOTES
@@ -36,6 +37,7 @@ param(
   [string]$ExpectedCommit = "",
   [string]$PlanId = "",
   [switch]$Independent,
+  [switch]$DismissStartupDialogs,
   [string]$RecordsDir = ""
 )
 $ErrorActionPreference = "Stop"
@@ -141,8 +143,18 @@ public static class GwWin {
       return true; }, IntPtr.Zero);
     return res;
   }
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  public static IntPtr FirstDialogForPid(uint target) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows((h,p) => { uint pid; GetWindowThreadProcessId(h, out pid);
+      var c=new StringBuilder(128); GetClassName(h,c,128);
+      if (pid==target && IsWindowVisible(h) && c.ToString()=="#32770") { found=h; return false; }
+      return true; }, IntPtr.Zero);
+    return found;
+  }
 }
 '@
+  Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
 
   $appName = if ($Exe) { [System.IO.Path]::GetFileNameWithoutExtension($Exe) } else { "" }
   if ($appName) { Get-Process -Name $appName -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
@@ -182,6 +194,15 @@ public static class GwWin {
       $crash = ($p.ExitCode -ne 0) -or ($werNew.Count -gt 0)
       $launch = "FAIL (exited early, code=$($p.ExitCode))"
     } else {
+      if ($DismissStartupDialogs) {
+        $dlg = [GwWin]::FirstDialogForPid([uint32]$p.Id)
+        if ($dlg -ne [IntPtr]::Zero) {
+          [GwWin]::SetForegroundWindow($dlg) | Out-Null; Start-Sleep -Milliseconds 400
+          try { [System.Windows.Forms.SendKeys]::SendWait("{ENTER}") } catch {}
+          Start-Sleep -Seconds 3; $p.Refresh()
+          $limitations.Add("Dismissed an EXPECTED startup dialog (-DismissStartupDialogs) before checking for the app's real window.")
+        }
+      }
       $entries = @()
       try { $entries = @([GwWin]::WindowsForPid([uint32]$p.Id) | ForEach-Object {
               $i = $_.IndexOf('|'); [pscustomobject]@{ class = $_.Substring(0,$i); title = $_.Substring($i+1) } }) } catch { $entries = @() }
