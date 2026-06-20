@@ -85,7 +85,7 @@ adapter 每次自動寫進 manifest：`iteration`、`errors_remaining`、`error_
 
 ## feedback（兩層：自動收集 + 使用者決定發布）
 
-**1) 自動收集（Collector，平台獨立、本地）**：adapter 每次跑完呼叫 `collect.ps1`，把**清洗後**最小紀錄 append 到本地 `<project>\.groundwork\feedback\ledger.jsonl`。無網路、不影響 verdict（best-effort）。redaction 為 **best-effort（規則不完整），對外分享前仍需人工複查**。
+**1) 自動收集（Collector，平台獨立、本地）**：adapter 每次跑完呼叫 `collect.ps1`，把**清洗後**最小紀錄 append 到本地 `<project>\_groundwork\feedback\ledger.jsonl`。無網路、不影響 verdict（best-effort）。redaction 為 **best-effort（規則不完整），對外分享前仍需人工複查**。
 **2) 使用者決定發布（選用，目前 GitHub adapter）**：判 `FAIL/INCONCLUSIVE/crash/false_verdict` 時，由**使用者決定**是否開 issue：`feedback.ps1` 印出去重搜尋＋**兩種開法**（(A) `gh issue create` 指令，回網址；(B) 預填 new-issue 網址，免 gh）。**零自動送出**。發布是可換的 sink（GitHub 只是一個 adapter）。
 
 ---
