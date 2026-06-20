@@ -38,9 +38,9 @@ disposition. READ-ONLY and parallelizable across a team.
 For each candidate record: SHA-256 + signature/provenance; assembly name/version/public key
 token; exported types / contract match against call sites; architecture; license.
 
-> Real-world miss: a prior repair reconstructed `CLSFTPDLL` from scratch, THEN found the
-> genuine DLL in a sibling `build_experiment/` folder — search-order step 1 the whole time.
-> Finishing the search before editing would have skipped the rework.
+> Common miss: reconstructing a missing dependency from scratch, THEN discovering the genuine
+> binary already sitting in a sibling build-output / backup folder — search-order step 1 the
+> whole time. Finishing the search before editing skips the rework.
 
 ## Stop conditions (gate `INVENTORY_COMPLETE`)
 
