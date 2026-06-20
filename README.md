@@ -20,8 +20,14 @@
 
 ## Quickstart
 
+安裝（從 marketplace）：
 ```bash
-claude --plugin-dir "E:/work/ai/groundwork"   # 啟用（改完用 /reload-plugins）
+/plugin marketplace add huangsron/groundwork
+/plugin install groundwork@groundwork
+```
+或本地開發（免重啟，改完用 `/reload-plugins`）：
+```bash
+claude --plugin-dir "E:/work/ai/groundwork"
 ```
 依序使用：`/groundwork:architect`（理解）→ `/groundwork:plan`（計畫、待你核准）→ `/groundwork:verify`（執行＋驗證）；`/groundwork:feedback` 按需使用。
 
