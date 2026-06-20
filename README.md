@@ -1,5 +1,10 @@
 # groundwork
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-5A3FD6)](https://code.claude.com/docs/en/plugins)
+![Platform](https://img.shields.io/badge/adapter-windows%20(.NET)-0078D6)
+![Status](https://img.shields.io/badge/status-v0.1.0-lightgrey)
+
 接手陌生或遺留專案的工具集：**理解系統 → 先盤依賴並計畫（核准後才動手）→ 獨立且可重複地驗證**。修復編譯只是其中一項。
 
 驗證的「規格」是**語言/OS 無關的契約**（`skills/verify/references/contract.md`）；「怎麼跑」由 per-platform **adapter** 實作。無對應 adapter 時，照契約用該環境的工具執行。
