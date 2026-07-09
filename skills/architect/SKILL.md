@@ -18,7 +18,7 @@ tool (`/groundwork:plan`, `:verify`) one shared ground truth.
 
 Write to `<project>/_groundwork/`:
 - `_map.md` — the briefing (sections below). Lead with a 3–5 sentence plain-language summary.
-- `_claims.json` — one list of claims, each `{ text, kind: fact|inference|unknown, evidence, confidence }`. (One file with a `kind` field — not separate claims/verdicts/audit files.)
+- `_claims.json` — one list of claims, each `{ text, kind: fact|inference|unknown, evidence, confidence, lens, corroboration: agreed|conflicted|single, verdict: confirmed|refuted|unverifiable }` — `verdict` only on claims that went through adversarial verification. (One file — not separate claims/verdicts/audit files.)
 
 ## `_map.md` layout (what the user reads — decide "is this worth taking on, where are the traps")
 
@@ -55,17 +55,8 @@ lists (full deps, schemas, file paths) into `_groundwork/`, don't inline them.
 
 ### Launch-crash probe (always check; a static scan often misses this)
 
-Flag as a **HIGH launch-crash risk**: a resource backed by a **native or external driver** —
-a DB client, a COM object, a P/Invoke / FFI wrapper, a licensed/vendor SDK — that is initialized
-**eagerly** (field initializer, constructor, or static/type initializer) rather than lazily.
-Its initializer runs **before the UI is shown**, so if the native driver/runtime is missing the
-app crashes **before any window appears**. Look for: instance/`static` fields constructed at
-declaration; such objects built in a form/page constructor or a global/singleton; type
-initializers that touch native code.
-
-Report it as a launch blocker whose fix is **lazy / guarded initialization** (construct on first
-use, inside a try) — NOT merely "verify at launch" or "set the platform bitness". This is generic
-across stacks (.NET type initializers, JVM static blocks, native dlopen at load, etc.).
+The probe lives in `references/lens-risk.md` (the risk scanner runs it in team mode). In
+single-pass mode, read that file and run the probe yourself — it is required either way.
 
 ## Universal (language/OS-agnostic)
 
@@ -77,12 +68,48 @@ Depth comes from **cross-validating multiple kinds of evidence** (source deps, c
 files, DB access, process startup, docs) — not from more platform rules. Where layering/topology
 is uncertain, mark it inference with confidence; don't force every system into UI/BLL/DAL.
 
-## Team (when the project is large / parallelizable)
+## Team pipeline (scan → cross-compare → adversarial verify → report)
 
-Workers gather **traceable facts** in parallel (scan, inventory, probe). A single **architect
-synthesizer** cross-infers and integrates them into `_map.md`. The same actor must not both scan
-and conclude (it amplifies local bias). For small projects, one synthesis pass is enough — a
-separate agent is only worth it at scale.
+The dispatcher (main conversation) never scans files and never draws conclusions; it asks the
+user, spawns subagents, and relays results. Separation of duties is absolute: **scanners don't
+conclude, the synthesizer doesn't scan, verifiers don't write the report.**
+
+| Role | Runs as | Model | Job |
+|------|---------|-------|-----|
+| Dispatcher | main conversation | (session) | ask the user, spawn, relay |
+| Scanner ×5 | subagent | haiku | one lens each, full-tree scan, return claims |
+| Synthesizer | subagent | inherit session model | cross-compare, then write the report |
+| Verifier ×N | subagent | sonnet | try to refute assigned claims |
+
+### Phase 0 — mode
+Ask the user (one question): 1. ⭐ full multi-agent pipeline 2. single-pass scan (one
+synthesis pass by a single agent; skip Phases 1–3; the launch-crash probe still runs).
+
+### Phase 1 — parallel scan
+Spawn all 5 haiku scanners in ONE message. Each prompt: "You are the <lens> scanner. Read
+`<skill-dir>/references/lens-<lens>.md` and follow it exactly. Scan root: <project path>.
+Your final reply must be ONLY the claims JSON." Lenses: `structure`, `dependencies`,
+`dataflow`, `runtime`, `risk`. A scanner that dies or returns nothing → its lens goes to
+"Not analyzed / unknowns"; never fill the gap by guessing.
+
+### Phase 2 — cross-compare
+Send all claims to the synthesizer subagent. It merges duplicates and tags every claim
+`corroboration: agreed|conflicted|single` (multi-lens agreement / contradiction between
+lenses, both sides kept with their evidence / seen by one lens only), and returns the merged
+claims plus a conflict list and a HIGH-risk list. It does NOT write the report yet.
+
+### Phase 3 — adversarial verification
+Ask the user for scope, with real counts filled in ("N conflicted, M HIGH"):
+1. ⭐ verify HIGH + conflicted only 2. verify all claims 3. HIGH + conflicted, plus a random
+sample of 10 of the rest. Spawn one sonnet verifier per claim, in parallel. Each prompt:
+"Read `<skill-dir>/references/adversarial-verify.md`. Your job is to REFUTE this claim:
+<claim JSON>. Your final reply must be ONLY the verdict JSON."
+
+### Phase 4 — report
+SendMessage the SAME synthesizer (it keeps its Phase-2 context), attaching all verdicts.
+Integration rules: `refuted` → drop from the map or downgrade to unknown, and note
+"adversarial verification refuted N claims" in the credibility marks; `unverifiable` → keep,
+tagged unknown/low-confidence. It writes `_map.md`, `_map-detail.md`, and `_claims.json`.
 
 ## Red flags — STOP
 
