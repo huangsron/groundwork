@@ -24,6 +24,6 @@ If still uncertain after real work: bad citation on a fact → refuted; otherwis
 Never confirm out of politeness.
 
 ## Output — your final reply is ONLY this JSON
-{ "verdict": "confirmed|refuted|unverifiable",
+{ "verdict": "<one of: confirmed | refuted | unverifiable>",
   "reason": "one sentence",
   "counter_evidence": "file:line or command output; empty string if none" }

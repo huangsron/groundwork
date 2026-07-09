@@ -83,7 +83,7 @@ conclude, the synthesizer doesn't scan, verifiers don't write the report.**
 
 ### Phase 0 — mode
 Ask the user (one question): 1. ⭐ full multi-agent pipeline 2. single-pass scan (one
-synthesis pass by a single agent; skip Phases 1–3; the launch-crash probe still runs).
+synthesis pass by a single agent; skip Phases 1–3; the launch-crash probe still runs). In single-pass mode every claim gets corroboration: single and no verdict.
 
 ### Phase 1 — parallel scan
 Spawn all 5 haiku scanners in ONE message. Each prompt: "You are the <lens> scanner. Read
@@ -96,14 +96,14 @@ Your final reply must be ONLY the claims JSON." Lenses: `structure`, `dependenci
 Send all claims to the synthesizer subagent. It merges duplicates and tags every claim
 `corroboration: agreed|conflicted|single` (multi-lens agreement / contradiction between
 lenses, both sides kept with their evidence / seen by one lens only), and returns the merged
-claims plus a conflict list and a HIGH-risk list. It does NOT write the report yet.
+claims plus a conflict list and a HIGH-risk list. It does NOT write the report yet. If the synthesizer dies or returns nothing, re-dispatch it once with the same input; if it fails again, stop and report partial results to the user (same rule applies in Phase 4).
 
 ### Phase 3 — adversarial verification
 Ask the user for scope, with real counts filled in ("N conflicted, M HIGH"):
 1. ⭐ verify HIGH + conflicted only 2. verify all claims 3. HIGH + conflicted, plus a random
 sample of 10 of the rest. Spawn one sonnet verifier per claim, in parallel. Each prompt:
 "Read `<skill-dir>/references/adversarial-verify.md`. Your job is to REFUTE this claim:
-<claim JSON>. Your final reply must be ONLY the verdict JSON."
+<claim JSON>. Your final reply must be ONLY the verdict JSON." A verifier that dies or returns nothing → its claim keeps no verdict and is treated as unverifiable.
 
 ### Phase 4 — report
 SendMessage the SAME synthesizer (it keeps its Phase-2 context), attaching all verdicts.

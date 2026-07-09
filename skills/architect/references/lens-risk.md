@@ -27,7 +27,7 @@ across stacks (.NET type initializers, JVM static blocks, native dlopen at load,
 ## Output — your final reply is ONLY this JSON array
 [
   { "text": "one claim (prefix launch blockers with 'HIGH launch-crash risk:')",
-    "kind": "fact|inference|unknown",
+    "kind": "<one of: fact | inference | unknown>",
     "evidence": "file:line, or command + output",
     "confidence": 0.0, "lens": "risk" }
 ]

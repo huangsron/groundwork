@@ -22,7 +22,7 @@ Read-only: change nothing in the scanned project.
 
 ## Output — your final reply is ONLY this JSON array
 [
-  { "text": "one claim", "kind": "fact|inference|unknown",
+  { "text": "one claim", "kind": "<one of: fact | inference | unknown>",
     "evidence": "file:line, or command + output",
     "confidence": 0.0, "lens": "runtime" }
 ]
