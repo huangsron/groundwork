@@ -18,6 +18,7 @@ tool (`/groundwork:plan`, `:verify`) one shared ground truth.
 
 Write to `<project>/_groundwork/`:
 - `_map.md` — the briefing (sections below). Lead with a 3–5 sentence plain-language summary.
+- `_map-detail.md` — the full 6-section briefing (linked from `_map.md`).
 - `_claims.json` — one list of claims, each `{ text, kind: fact|inference|unknown, evidence, confidence, lens, corroboration: agreed|conflicted|single, verdict: confirmed|refuted|unverifiable }` — `verdict` only on claims that went through adversarial verification. (One file — not separate claims/verdicts/audit files.)
 
 ## `_map.md` layout (what the user reads — decide "is this worth taking on, where are the traps")
@@ -96,14 +97,14 @@ Your final reply must be ONLY the claims JSON." Lenses: `structure`, `dependenci
 Send all claims to the synthesizer subagent. It merges duplicates and tags every claim
 `corroboration: agreed|conflicted|single` (multi-lens agreement / contradiction between
 lenses, both sides kept with their evidence / seen by one lens only), and returns the merged
-claims plus a conflict list and a HIGH-risk list. It does NOT write the report yet. If the synthesizer dies or returns nothing, re-dispatch it once with the same input; if it fails again, stop and report partial results to the user (same rule applies in Phase 4).
+claims plus a conflict list and a HIGH-risk list (HIGH = claims prefixed "HIGH launch-crash risk:" plus anything the synthesizer judges launch-blocking or data-loss-risking). It does NOT write the report yet. If the synthesizer dies or returns nothing, re-dispatch it once with the same input; if it fails again, stop and report partial results to the user (same rule applies in Phase 4).
 
 ### Phase 3 — adversarial verification
 Ask the user for scope, with real counts filled in ("N conflicted, M HIGH"):
 1. ⭐ verify HIGH + conflicted only 2. verify all claims 3. HIGH + conflicted, plus a random
 sample of 10 of the rest. Spawn one sonnet verifier per claim, in parallel. Each prompt:
 "Read `<skill-dir>/references/adversarial-verify.md`. Your job is to REFUTE this claim:
-<claim JSON>. Your final reply must be ONLY the verdict JSON." A verifier that dies or returns nothing → its claim keeps no verdict and is treated as unverifiable.
+<claim JSON>. Your final reply must be ONLY the verdict JSON." A verifier that dies or returns nothing → its claim keeps no verdict and is treated as unverifiable (no `verdict` field in `_claims.json`).
 
 ### Phase 4 — report
 SendMessage the SAME synthesizer (it keeps its Phase-2 context), attaching all verdicts.

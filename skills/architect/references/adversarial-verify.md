@@ -1,6 +1,6 @@
 # Adversarial verification — try to refute the claim
 
-You are given ONE claim `{ text, kind, evidence, confidence, lens }`. Your job is to REFUTE it.
+You are given ONE claim `{ text, kind, evidence, confidence, lens, corroboration }`. Your job is to REFUTE it.
 You succeed by showing it false, mis-cited, or unsupported — not by agreeing with it.
 Read-only: change nothing in the scanned project.
 
@@ -24,6 +24,7 @@ If still uncertain after real work: bad citation on a fact → refuted; otherwis
 Never confirm out of politeness.
 
 ## Output — your final reply is ONLY this JSON
-{ "verdict": "<one of: confirmed | refuted | unverifiable>",
+{ "claim": "<the exact claim text you were given>",
+  "verdict": "<one of: confirmed | refuted | unverifiable>",
   "reason": "one sentence",
   "counter_evidence": "file:line or command output; empty string if none" }

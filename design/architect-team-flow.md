@@ -85,3 +85,11 @@ AskUserQuestion 一題：
 - `skills/architect/SKILL.md`：Team 段改寫為本管線＋角色/model 表；
   launch-crash probe 細節移至 `lens-risk.md`，SKILL.md 留一行指引。
 - 新增 `skills/architect/references/`：上述 6 檔。
+
+## Addendum（2026-07-09，實作審查後補充；均已寫入 SKILL.md）
+
+- Phase 2/4：synthesizer 掛掉或回空 → 以相同輸入重派一次；再失敗 → 中止並向使用者回報部分結果。
+- Phase 3：驗證員掛掉或回空 → 該條 claim 無 verdict、視同 unverifiable（`_claims.json` 不寫 `verdict` 欄位）。
+- 單人模式：所有 claim 的 `corroboration` 一律 `single`、皆無 `verdict`。
+- verdict JSON 增加 `claim` 欄位（回帶原 claim 全文），Phase 4 才能把 verdict 對回 claim。
+- HIGH 定義：帶 `HIGH launch-crash risk:` 前綴的 claim，加上 synthesizer 判斷會阻斷啟動或造成資料損失者。
