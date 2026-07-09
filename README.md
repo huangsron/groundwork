@@ -35,11 +35,11 @@ claude --plugin-dir "E:/work/ai/groundwork"
 
 各 skill 讀前一個的產物、寫自己的，全部放在 `<專案>/_groundwork/`：
 ```
-architect → _map.md, _claims.json
-plan      → 讀 _map.md → _plan.md, _manifest.json（含核准記錄）
+architect → README + 01~06 文件集 + PROJECT_OVERVIEW_REPORT.md, _claims.json
+plan      → 讀 architect 文件集 → _plan.md, _manifest.json（含核准記錄）
 verify    → 讀 _manifest.json → _report.md ＋ runs/run-<id>/{manifest.json, logs/} ＋ feedback/ledger.jsonl
 ```
-- **報告**（給人讀，保留）：`_map.md` `_plan.md` `_report.md` 直接在 `_groundwork/`。
+- **報告**（給人讀，保留）：architect 文件集（`README.md`、`01_PROJECT_OVERVIEW.md`…`PROJECT_OVERVIEW_REPORT.md`）、`_plan.md`、`_report.md` 直接在 `_groundwork/`。
 - **執行記錄/量化**（每次一個，可依策略清）：`_groundwork/runs/run-<utc>-<rand>/`（`manifest.json` ＋ `logs/`）；跨次狀態 `runs/iteration-state.json`。
 - **跨次累積**：`_groundwork/feedback/ledger.jsonl`（單一 append，每筆帶 `run_id`）。
 

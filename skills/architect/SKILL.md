@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Use when you need to understand an unfamiliar or legacy codebase as a system before changing it — produce a systems-architect briefing so later tools share one ground truth. Use when "I don't know what this project is / how it fits together / what it needs to run." Produces the shared _map.md that /groundwork:plan consumes.
+description: Use when you need to understand an unfamiliar or legacy codebase as a system before changing it — produce a systems-architect briefing so later tools share one ground truth. Use when "I don't know what this project is / how it fits together / what it needs to run." Produces the shared _groundwork/ documentation set that readers and /groundwork:plan consume.
 ---
 
 # Architect — understand the system first
@@ -16,43 +16,46 @@ tool (`/groundwork:plan`, `:verify`) one shared ground truth.
 
 ## Output (handoff)
 
+Audience: someone reading the project for the first time who must quickly understand purpose,
+architecture, main flows, data model, external dependencies, launch conditions, risks, and
+where to verify each claim.
+
 Write to `<project>/_groundwork/`:
-- `_map.md` — the briefing (sections below). Lead with a 3–5 sentence plain-language summary.
-- `_map-detail.md` — the full 6-section briefing (linked from `_map.md`).
-- `_claims.json` — one list of claims, each `{ text, kind: fact|inference|unknown, evidence, confidence, lens, corroboration: agreed|conflicted|single, verdict: confirmed|refuted|unverifiable }` — `verdict` only on claims that went through adversarial verification. (One file — not separate claims/verdicts/audit files.)
 
-## `_map.md` layout (what the user reads — decide "is this worth taking on, where are the traps")
+| File | Contents |
+|------|----------|
+| `README.md` | table of contents, reading order, format conventions — nothing else; do not duplicate report content |
+| `01_PROJECT_OVERVIEW.md` | project purpose, core code areas, external dependencies, cautions before modifying |
+| `02_ARCHITECTURE.md` | C4-style architecture diagrams, component relations, main runtime flows, data model — all diagrams in Mermaid |
+| `03_READINESS_CHECKLIST.md` | launch preconditions, health checks, how to read PASS/FAIL/WARN |
+| `04_RISK_REGISTER.md` | HIGH/MEDIUM/LOW risks, impact, suggested handling; lead with a traffic-light table; each risk carries a credibility tag (`direct-read` / `inference` / `unknown`) |
+| `05_EVIDENCE_INDEX.md` | every important conclusion → its source-code / SQL / config-file evidence |
+| `06_DEV_ENVIRONMENT.md` | local verification environment; docker/init/setup scripts and how to run them |
+| `PROJECT_OVERVIEW_REPORT.md` | the complete single-file report (full reading version) |
+| `_claims.json` | machine handoff: one list of claims, each `{ text, kind: fact\|inference\|unknown, evidence, confidence, lens, corroboration: agreed\|conflicted\|single, verdict: confirmed\|refuted\|unverifiable }` — `verdict` only on claims that went through adversarial verification. (One file — not separate claims/verdicts/audit files.) |
 
-Lead with the decision part; push detail down. Skeleton:
-```
-# System map
+Style: professional, clear, maintainable. Not a chat log or an analysis narrative; no draft
+tone, no mojibake, no repeated sections. Absorb important existing content fully — don't
+reduce it to a summary. Uncertain external systems or black-box DLLs are marked
+**Unknown / 待確認** — never pretend to know.
 
-> One sentence: type, size, main stack.
+**Completeness gate** — before finishing, check `_groundwork/` contains: an architecture
+diagram, a flow diagram, a data model, launch checks, a risk register, and an evidence index.
+Anything missing → go back and fill it in.
 
-## Risk traffic-lights        (the part a user reads in 30 seconds)
-| Level | Risk | Basis |
-|-------|------|-------|
-| HIGH/MED/LOW | one line | direct-read / inference / unknown |   ← show credibility, simplified
+## Content mapping (where each briefing topic lands)
 
-## Component sketch           (ASCII or bullets; main parts + boundaries — not a file list)
+1. **System positioning & boundary** — purpose, users, core capabilities, in/out of scope, architecture style → `01`
+2. **Components & responsibilities** — main layers/subsystems, each one's job, dependency direction; *not a per-file dump* → `02`
+3. **Key flows & data** — 2–5 main execution/data flows, who owns state, the important data stores → `02`
+4. **External integration & runtime topology** — DB, files, FTP, services, batch; process/host relations; how it deploys → `02` + `06`
+5. **Cross-cutting concerns** — config, auth/secrets, logging, error handling, transactions, observability → `PROJECT_OVERVIEW_REPORT.md` (cautions echoed in `01`)
+6. **Risks & unknowns** — high coupling, single points of failure, tech debt, thin evidence → `04`; launch conditions → `03`
 
-## Not analyzed / unknowns    (what you could NOT see — be honest)
-
-## Details → `_groundwork/_map-detail.md`   (link only — keep the full briefing OUT of the decision view)
-```
-Keep `_map.md` to the decision view above; write the full 6-section briefing to a separate
-`_groundwork/_map-detail.md` and link it. Show a simplified credibility tag on each risk
-(`direct-read` vs `inference` vs `unknown`) so the user knows what to trust vs verify. Link long
-lists (full deps, schemas, file paths) into `_groundwork/`, don't inline them.
-
-## Briefing sections (write these into `_map-detail.md`; minimum; trim to an appendix)
-
-1. **System positioning & boundary** — purpose, users, core capabilities, in/out of scope, architecture style.
-2. **Components & responsibilities** — main layers/subsystems, each one's job, dependency direction. *Not a per-file dump.*
-3. **Key flows & data** — 2–5 main execution/data flows, who owns state, the important data stores.
-4. **External integration & runtime topology** — DB, files, FTP, services, batch; process/host relations; how it deploys.
-5. **Cross-cutting concerns** — config, auth/secrets, logging, error handling, transactions, observability.
-6. **Risks & unknowns** — high coupling, single points of failure, tech debt, where evidence is thin → verification priorities.
+`PROJECT_OVERVIEW_REPORT.md` integrates all six topics as one document. What you could NOT
+see goes in a "Not analyzed / unknowns" section (in `01` and the report) — be honest. Every
+important conclusion in any doc must be traceable in `05_EVIDENCE_INDEX.md` and exist as a
+claim in `_claims.json`.
 
 ### Launch-crash probe (always check; a static scan often misses this)
 
@@ -108,9 +111,10 @@ sample of 10 of the rest. Spawn one sonnet verifier per claim, in parallel. Each
 
 ### Phase 4 — report
 SendMessage the SAME synthesizer (it keeps its Phase-2 context), attaching all verdicts.
-Integration rules: `refuted` → drop from the map or downgrade to unknown, and note
+Integration rules: `refuted` → drop from the report or downgrade to unknown, and note
 "adversarial verification refuted N claims" in the credibility marks; `unverifiable` → keep,
-tagged unknown/low-confidence. It writes `_map.md`, `_map-detail.md`, and `_claims.json`.
+tagged unknown/low-confidence. It writes the full `_groundwork/` documentation set (see
+Output) plus `_claims.json`, then runs the completeness gate.
 
 ## Red flags — STOP
 

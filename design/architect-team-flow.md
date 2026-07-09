@@ -1,7 +1,8 @@
 # /groundwork:architect — 多 agent 掃描管線（設計，已核准 2026-07-09）
 
-> 原則不變：全程**唯讀、不改任何產品碼**。輸出仍是 `<project>/_groundwork/` 下的
-> `_map.md`、`_map-detail.md`、`_claims.json`。
+> 原則不變：全程**唯讀、不改任何產品碼**。輸出為 `<project>/_groundwork/` 下的
+> 文件集（`README.md`、`01_PROJECT_OVERVIEW.md` … `PROJECT_OVERVIEW_REPORT.md`）＋
+> `_claims.json`（2026-07-09 起取代原 `_map.md`/`_map-detail.md`，詳見 SKILL.md Output）。
 
 ## 目標
 
@@ -31,7 +32,7 @@ AskUserQuestion 一題：
   「你是視角 X 的掃描員，先讀 `references/lens-X.md` 照做；掃描根目錄 `<path>`；
   最終回覆只回 claims JSON。」
 - claims 條目：`{ text, kind: fact|inference|unknown, evidence: "file:line 或指令輸出", confidence, lens }`
-- 掃描員掛掉或回空 → 該視角列入 `_map.md` 的「Not analyzed / unknowns」，**不補猜**。
+- 掃描員掛掉或回空 → 該視角列入報告的「Not analyzed / unknowns」，**不補猜**。
 
 ### Phase 2 — 交叉比對（synthesizer 第一回合）
 - 收齊全部 claims 轉交 synthesizer subagent。
@@ -53,9 +54,9 @@ AskUserQuestion 一題：
 ### Phase 4 — 報告（synthesizer 第二回合）
 - 用 SendMessage 叫回**同一個** synthesizer（保留其比對脈絡），附上全部 verdicts。
 - 整合規則：
-  - `refuted` → 從地圖移除或降級為 unknown；`_map.md` 可信度標記註明「經對抗驗證推翻 N 條」
+  - `refuted` → 從報告移除或降級為 unknown；可信度標記註明「經對抗驗證推翻 N 條」
   - `unverifiable` → 保留但標 unknown/低信心
-- 寫出 `_map.md`（決策視圖）、`_map-detail.md`（六節完整簡報）、`_claims.json`。
+- 寫出完整 `_groundwork/` 文件集（見 SKILL.md Output 表）＋ `_claims.json`，並跑完整性檢查。
 
 ## `_claims.json` schema（單一檔案原則不變，加三欄）
 

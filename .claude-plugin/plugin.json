@@ -2,7 +2,7 @@
   "name": "groundwork",
   "displayName": "Groundwork",
   "description": "A toolset for safely taking on unfamiliar or legacy projects: understand the system, inventory dependencies first, plan behind an approval gate, and verify independently and repeatably. Build-repair is one tool, not the whole kit.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": { "name": "sron", "email": "huang.sron@gmail.com" },
   "license": "MIT",
   "keywords": ["legacy", "build", "dependencies", "verification", "architecture", "toolkit"]
