@@ -94,3 +94,16 @@ AskUserQuestion 一題：
 - 單人模式：所有 claim 的 `corroboration` 一律 `single`、皆無 `verdict`。
 - verdict JSON 增加 `claim` 欄位（回帶原 claim 全文），Phase 4 才能把 verdict 對回 claim。
 - HIGH 定義：帶 `HIGH launch-crash risk:` 前綴的 claim，加上 synthesizer 判斷會阻斷啟動或造成資料損失者。
+
+## Addendum（2026-07-09，覆蓋保證三層機制；已寫入 SKILL.md）
+
+- **基準清單**：Phase 1 派工前，調度員跑一次 `git ls-files`（fallback `find`/`Get-ChildItem`）
+  建立全樹檔案清單＋分類計數——這是「掃完了沒」的唯一客觀基準（調度員仍不開檔案內容）。
+- **掃描深度合約**（寫在派工 prompt，五 lens 共用）：先列全樹不猜、關鍵檔類必須開檔讀
+  （manifest/設定/SQL/腳本/文件/進入點）、收尾回一條 `coverage:` claim 列出讀過與跳過的區域
+  （跳過區域另立 `unknown` claim）。
+- **Phase 2 機械對帳**：synthesizer 把所有 claims 的 evidence 路徑 ∪ 宣告跳過區域，diff 基準
+  清單；兩邊都沒有的＝**靜默盲區**→ 調度員補派一次定向掃描，仍未覆蓋 → 進 Not analyzed。
+  `05_EVIDENCE_INDEX.md` 收尾加 Coverage 小節（X/Y、宣告跳過、殘餘盲區）。
+- 邊界誠實聲明：此機制保證**廣度無靜默盲區**與可查證性；不保證檔案內部理解深度、claims
+  正確性（靠 Phase 3 抽驗）、repo 之外的 runtime/DB/black-box 真相。

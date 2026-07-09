@@ -29,7 +29,7 @@ Write to `<project>/_groundwork/`:
 | `02_ARCHITECTURE.md` | C4-style architecture diagrams, component relations, main runtime flows, data model — all diagrams in Mermaid |
 | `03_READINESS_CHECKLIST.md` | launch preconditions, health checks, how to read PASS/FAIL/WARN |
 | `04_RISK_REGISTER.md` | HIGH/MEDIUM/LOW risks, impact, suggested handling; lead with a traffic-light table; each risk carries a credibility tag (`direct-read` / `inference` / `unknown`) |
-| `05_EVIDENCE_INDEX.md` | every important conclusion → its source-code / SQL / config-file evidence |
+| `05_EVIDENCE_INDEX.md` | every important conclusion → its source-code / SQL / config-file evidence; ends with a **Coverage** section: evidence touched X of Y inventoried files, declared-skipped list, remaining blind-spot list |
 | `06_DEV_ENVIRONMENT.md` | local verification environment; docker/init/setup scripts and how to run them |
 | `PROJECT_OVERVIEW_REPORT.md` | the complete single-file report (full reading version) |
 | `_claims.json` | machine handoff: one list of claims, each `{ text, kind: fact\|inference\|unknown, evidence, confidence, lens, corroboration: agreed\|conflicted\|single, verdict: confirmed\|refuted\|unverifiable }` — `verdict` only on claims that went through adversarial verification. (One file — not separate claims/verdicts/audit files.) |
@@ -40,8 +40,8 @@ reduce it to a summary. Uncertain external systems or black-box DLLs are marked
 **Unknown / 待確認** — never pretend to know.
 
 **Completeness gate** — before finishing, check `_groundwork/` contains: an architecture
-diagram, a flow diagram, a data model, launch checks, a risk register, and an evidence index.
-Anything missing → go back and fill it in.
+diagram, a flow diagram, a data model, launch checks, a risk register, an evidence index,
+and the Coverage section. Anything missing → go back and fill it in.
 
 ## Content mapping (where each briefing topic lands)
 
@@ -87,17 +87,42 @@ conclude, the synthesizer doesn't scan, verifiers don't write the report.**
 
 ### Phase 0 — mode
 Ask the user (one question): 1. ⭐ full multi-agent pipeline 2. single-pass scan (one
-synthesis pass by a single agent; skip Phases 1–3; the launch-crash probe still runs). In single-pass mode every claim gets corroboration: single and no verdict.
+synthesis pass by a single agent; skip Phases 1–3; the launch-crash probe, the depth
+contract, and the coverage reconciliation still apply — the single agent builds the
+inventory, obeys the contract, and writes the Coverage section itself). In single-pass mode
+every claim gets corroboration: single and no verdict.
 
 ### Phase 1 — parallel scan
+
+**Baseline inventory first.** The dispatcher runs ONE read-only command — `git ls-files`
+(fallback: `find` / `Get-ChildItem -Recurse -Name`) — and keeps the full file list plus
+counts by class (source / SQL / config / scripts / docs / other). This list is the ground
+truth for "was everything scanned"; it is the only file-level act the dispatcher performs
+(it never opens file contents).
+
 Spawn all 5 haiku scanners in ONE message. Each prompt: "You are the <lens> scanner. Read
 `<skill-dir>/references/lens-<lens>.md` and follow it exactly. Scan root: <project path>.
-Your final reply must be ONLY the claims JSON." Lenses: `structure`, `dependencies`,
-`dataflow`, `runtime`, `risk`. A scanner that dies or returns nothing → its lens goes to
-"Not analyzed / unknowns"; never fill the gap by guessing.
+Depth contract: (1) start by enumerating the full tree (`git ls-files` or equivalent) —
+never sample by guessing what exists; (2) OPEN AND READ — not just list — every file
+relevant to your lens among: solution/project/manifest files, config files, SQL/schema
+files, scripts, docs, and entry-point source; (3) your LAST claim must be a coverage claim
+whose text starts with 'coverage:', naming the areas you inspected and the areas you
+skipped; each skipped area also gets its own kind:'unknown' claim. Your final reply must be
+ONLY the claims JSON." Lenses: `structure`, `dependencies`, `dataflow`, `runtime`, `risk`.
+A scanner that dies or returns nothing → its lens goes to "Not analyzed / unknowns"; never
+fill the gap by guessing.
 
 ### Phase 2 — cross-compare
-Send all claims to the synthesizer subagent. It merges duplicates and tags every claim
+Send all claims **plus the baseline inventory** to the synthesizer subagent.
+
+**Coverage reconciliation (mechanical, first).** Union every file path appearing in any
+claim's `evidence` with the areas declared skipped in coverage claims; diff against the
+inventory. Files in neither set are **silent blind spots**. The synthesizer returns the
+blind-spot list with its other outputs; the dispatcher re-dispatches ONE targeted scan
+(suitable lens, blind-spot paths listed in the prompt) to cover them. Still uncovered after
+that → they go into "Not analyzed / unknowns". Never shrink the blind-spot list by guessing.
+
+Then it merges duplicates and tags every claim
 `corroboration: agreed|conflicted|single` (multi-lens agreement / contradiction between
 lenses, both sides kept with their evidence / seen by one lens only), and returns the merged
 claims plus a conflict list and a HIGH-risk list (HIGH = claims prefixed "HIGH launch-crash risk:" plus anything the synthesizer judges launch-blocking or data-loss-risking). It does NOT write the report yet. If the synthesizer dies or returns nothing, re-dispatch it once with the same input; if it fails again, stop and report partial results to the user (same rule applies in Phase 4).
