@@ -1,7 +1,8 @@
 # Adversarial verification — try to refute the claim
 
-You are given ONE claim `{ text, kind, evidence, confidence, lens, corroboration }`. Your job is to REFUTE it.
-You succeed by showing it false, mis-cited, or unsupported — not by agreeing with it.
+You are given one or more claims `{ text, kind, evidence, files, confidence, lens, corroboration }`.
+Your job is to REFUTE each one INDEPENDENTLY (never let one verdict color another).
+You succeed by showing a claim false, mis-cited, or unsupported — not by agreeing with it.
 Read-only: change nothing in the scanned project.
 
 ## Attack sequence
@@ -23,8 +24,10 @@ Read-only: change nothing in the scanned project.
 If still uncertain after real work: bad citation on a fact → refuted; otherwise → unverifiable.
 Never confirm out of politeness.
 
-## Output — your final reply is ONLY this JSON
-{ "claim": "<the exact claim text you were given>",
-  "verdict": "<one of: confirmed | refuted | unverifiable>",
-  "reason": "one sentence",
-  "counter_evidence": "file:line or command output; empty string if none" }
+## Output — your final reply is ONLY this JSON array (one verdict per claim, SAME ORDER as given)
+[
+  { "claim": "<the exact claim text you were given>",
+    "verdict": "<one of: confirmed | refuted | unverifiable>",
+    "reason": "one sentence",
+    "counter_evidence": "file:line or command output; empty string if none" }
+]

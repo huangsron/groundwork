@@ -1,8 +1,7 @@
 {
   "feedback_repo": "<owner/repo>",
   "feedback_label_prefix": "skill:",
-  "feedback_token_env": "GH_FEEDBACK_TOKEN",
   "feedback_mode": "draft",
   "feedback_cooldown_days": 7,
-  "_note": "draft = write redacted draft + print gh commands (human files). auto = high-signal categories only (not false_verdict). off = disabled. Used by adapters/windows/feedback.ps1."
+  "_note": "draft = write redacted draft + print gh commands (human files). auto = reserved, not implemented (behaves as draft; would cover high-signal categories only, never false_verdict). off = disabled. Read by adapters/windows/feedback.ps1 as parameter defaults."
 }

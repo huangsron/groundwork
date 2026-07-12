@@ -34,6 +34,8 @@ PASS =
   AND no unapproved dependency or scope change
 ```
 Any shortfall downgrades to `LOCAL_CHECK` (gates met, not independent) or `FAIL`/`BLOCKED`.
+**Unknown is not clean:** if cleanliness/commit cannot be determined (no git, git failed), that is
+a downgrade to `LOCAL_CHECK` with a limitation — never treat missing evidence as passing evidence.
 
 ## Evidence manifest (schema)
 
@@ -41,7 +43,8 @@ Required fields (types): `verdict` (string enum above), `independence` (`subagen
 `build_ok` (bool), `errors_remaining` (int), `error_delta` (int|null), `iteration` (int),
 `launch` (string), `crash_detected` (bool), `tree_clean` (bool|null), `source_commit` (string),
 `expected_commit` (string), `commit_match` (bool|null), `harness_hash` (string),
-`artifact_fresh` (bool|null), `records_dir` (string), `plan_id` (string),
+`artifact_fresh` (bool|null), `records_dir` (string), `project_root` (string — the git toplevel
+when available, else the project dir; anchors `_groundwork/`), `plan_id` (string),
 `limitations` (string[] — must serialize as `[]`, never null).
 
 ## Ledger record (schema, appended per run, redacted)
@@ -57,15 +60,43 @@ Required fields (types): `verdict` (string enum above), `independence` (`subagen
 |------|------------------------------|
 | Library | compiles; tests pass; (optional) API/ABI unchanged |
 | CLI | expected exit code; stdout matches the agreed contract |
-| **GUI** | process alive **and positive evidence of a usable app UI**: a credible top-level application window owned by the process, stable for a minimum duration, no crash/WER. *A window that is ONLY an error/MessageBox-style dialog is ambiguous → `INCONCLUSIVE`, not PASS, unless an expected title/class confirms it.* Process-alive alone is necessary, not sufficient. |
+| **GUI** | process alive **and positive evidence of a usable app UI**: a credible top-level application window owned by the process, stable for a minimum duration, no crash/WER. *A window that is ONLY an error/MessageBox-style dialog is ambiguous → `INCONCLUSIVE`, not PASS — even when its TITLE matches the expected one (error boxes carry the app's name); only a non-dialog window confirms.* Process-alive alone is necessary, not sufficient. |
 | Service | port open / health endpoint OK / startup within timeout |
 | Web | builds; server reaches readiness; HTTP smoke passes |
 | Native | links; architecture matches; runs (or emulator gate) |
 
-## Dedup signature
+## Failure categories (closed taxonomy — do not invent others)
 
-`signature = short_hash( failure_category + skill_name + skill_version + normalized_error_pattern )`,
-where `normalized_error_pattern` is the error skeleton with paths/line-cols/quoted-values removed.
+Assign the FIRST matching category, in this order:
+
+| Category | When |
+|----------|------|
+| `false_verdict` | a human confirmed a recorded verdict was wrong (retro-correction, see below) |
+| `env_blocked` | verdict `BLOCKED` — environment/toolchain/access missing |
+| `harness_error` | verdict `ERROR` — the harness itself failed |
+| `startup_crash` | crash detected at launch |
+| `build_failure` | build gate failed |
+| `launch_failure` | build ok, launch gate failed |
+| `launch_inconclusive` | launch evidence ambiguous (no window / dialog-only) |
+| `ok` | verdict `PASS` or `LOCAL_CHECK` |
+| `unknown` | none of the above |
+
+**`false_verdict` source:** nothing sets it automatically. When a human later determines a recorded
+verdict was wrong, re-run the collector against that run's manifest with the false-verdict count
+(reference adapter: `collect.ps1 -Manifest <run>/manifest.json -FalseVerdict 1`) — it appends a
+correction record with the same `run_id`.
+
+## Dedup signature (exact algorithm — same on every platform, or dedup breaks)
+
+`signature = lowercase(hex(SHA-256(UTF-8(category + "|" + skill_name + "|" + skill_version + "|" + normalized_error_pattern))))[0..11]`
+(first 12 hex chars). `normalized_error_pattern` = first error line (or the launch-gate string if
+no build error), after redaction, then normalized in this order:
+1. `(\d+,\d+)` → `(<lc>)` (line/col)
+2. `\S+\(<lc>\)` → `<file>(<lc>)` (source path before the line/col)
+3. `'…'` quoted values → `'<v>'`
+4. `/…/` regex literals → `/<re>/`
+5. digits not preceded by a letter or digit → `<n>` (timeouts/exit codes; keeps `CS0246`-style codes)
+
 Same problem → same signature (a stable fingerprint), regardless of run.
 
 ## Redaction rules (apply at collection time; **best-effort, not a guarantee**)
@@ -73,6 +104,26 @@ Same problem → same signature (a stable fingerprint), regardless of run.
 Strip before any record leaves memory: filesystem paths → `<path>`; IPv4 → `<ip>`;
 fields whose key matches `password|secret|token|api[_-]?key|bearer` → `<redacted>`; do not collect
 source code. These patterns are incomplete — **a human must still review before sharing externally.**
+
+## Minimal adapter checklist (any platform — e.g. a POSIX shell adapter)
+
+An adapter on any OS is correct when it does ALL of the following; nothing here needs PowerShell:
+
+1. **Run dir**: create `<project>/_groundwork/runs/run-<UTC yyyyMMddTHHmmssZ>-<6 random hex>/` with
+   `logs/` inside. `<project>` = the git toplevel when available, else the built project's dir —
+   the SAME `_groundwork/` architect/plan write to (one tree, not one per subproject).
+2. **Cleanliness**: record `source_commit` (`git rev-parse HEAD`) and `tree_clean` from
+   `git status --porcelain` at the **repo toplevel**, excluding `_groundwork/**`; git absent/failed →
+   `tree_clean = null` (unknown ≠ clean).
+3. **Build**: run the ecosystem's build (make/gradle/cargo/npm…), capture exit code + full log into
+   `logs/`; `errors_remaining` = count of **distinct** error lines.
+4. **Smoke gate**: apply the program-type gate from the table above.
+5. **Verdict**: apply the PASS predicate exactly; emit the manifest with every required field
+   (missing evidence → `null`, `limitations` entry) as **UTF-8 without BOM**.
+6. **Collect**: append one redacted ledger record (schema above, signature algorithm above) to
+   `<project>/_groundwork/feedback/ledger.jsonl`, one compact JSON object per line, UTF-8 **without BOM**.
+7. **Iteration state**: keep `runs/iteration-state.json` (`last_errors`, `iteration`) to compute `error_delta`.
+8. **Exit code**: 0 for `PASS`/`LOCAL_CHECK`, 1 otherwise; the manifest `verdict` field is the real verdict.
 
 ## Honest limits (state these; do not overclaim)
 

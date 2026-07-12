@@ -32,9 +32,23 @@ editor judging their own work.
 
 | # | Phase | Gate / output |
 |---|-------|---------------|
-| 5 | **Execute** (team) | One isolated working dir per parallel agent; serialize high-conflict files (.sln/manifest/lockfile/toolchain) via a single integrator; single-purpose commits |
-| 6 | **Independent verify** | Verifier (≠ executor) runs the frozen harness on a clean checkout; emits evidence + verdict |
+| 5 | **Execute** | ENTRY GATE (below), then apply the approved fixes; single-purpose commits |
+| 6 | **Independent verify** | Verifier (≠ executor) runs the frozen harness on a clean checkout of the integration commit; emits evidence + verdict |
 | 7 | **Report** | Summary first, details after |
+
+**Phase 5 entry gate (before the FIRST edit).** Read the approval record
+`_groundwork/_manifest.json` (written by /groundwork:plan). It must show an explicit approval
+decision, the plan id, and the allowed paths. Honor `approved_except` exclusions — an excluded
+fix is NOT approved. No record, or decision isn't an approval → STOP; a chat "ok" without the
+record is not approval. Also read recent `_groundwork/feedback/ledger.jsonl` records — a
+same-signature past failure changes what to watch for.
+
+**Phase 5 execution modes.** Default: ONE executor applies fixes sequentially — simplest and
+safe. Team mode (only when fixes are many and independent): one `git worktree` per agent, each
+assigned whole fixes (never shared files); ONE integrator owns high-conflict files
+(.sln/manifest/lockfile/toolchain) and merges. Either mode ends with the integrator (or sole
+executor) committing the applied fixes and recording the **integration commit SHA** — that SHA
+is what the verifier checks out and what `-ExpectedCommit` binds.
 
 **The authoritative, language/OS-agnostic spec is `references/contract.md`** (verdict states,
 PASS predicate, manifest/ledger schema, smoke gates, redaction, signature, honest limits). Any
@@ -45,14 +59,17 @@ matching adapter exists, follow the contract directly with the environment's own
 
 ## Iteration scorecard (run every loop; stops thrashing)
 
-Score each verify loop objectively. If the score does not improve for 2 consecutive loops,
-STOP and route back to /groundwork:plan — that is trial-and-error, not progress.
+Score each verify loop objectively. **Improved** means: `errors_remaining` strictly down OR a
+blocker closed, AND zero new regressions, AND scope adherence = yes — anything else is NOT
+improvement (errors down while a regression appeared is a worse loop). If the score does not
+improve for 2 consecutive loops, STOP and route back to /groundwork:plan — that is
+trial-and-error, not progress.
 
 | Metric | Measure |
 |--------|---------|
 | Build errors Δ | compile errors vs previous loop (down = good) |
 | Blockers resolved Δ | approved blockers closed this loop |
-| Verdict | PASS / FAIL / BLOCKED from the independent harness |
+| Verdict | one of the six contract states (PASS / LOCAL_CHECK / FAIL / INCONCLUSIVE / BLOCKED / ERROR) from the independent harness |
 | Regressions | previously-passing gates now failing (any = bad) |
 | Scope adherence | edits stayed within approved paths (must be yes) |
 
@@ -94,10 +111,12 @@ Lead with a verdict the user cannot misread. Skeleton:
 # Verification report
 
 Result: LOCAL_CHECK (partial verification)        ← plain words, not just the acronym
-Env: <date> / <OS> / <conditions, e.g. no access to production DB>   ·   independence: <subagent/CI/none>
+Env: <date> / <OS> / <conditions, e.g. no access to production DB>   ·   independence: <subagent/process-separated/CI/none>
 
 (one line per verdict: PASS = all targets verified in this env; LOCAL_CHECK = passed here but not
-independently/in production; FAIL = a target failed; BLOCKED = could not run — env/access missing.)
+independently/in production; FAIL = a target failed; INCONCLUSIVE = ran but evidence is ambiguous
+— e.g. dialog-only window; BLOCKED = could not run — env/access missing; ERROR = the harness
+itself failed. All six are defined in references/contract.md.)
 
 ## Per-item results   (one row per approved fix)
 | Item | Result | Evidence (summary) |
@@ -111,10 +130,14 @@ independently/in production; FAIL = a target failed; BLOCKED = could not run —
 - LOCAL_CHECK is NOT a PASS. Reproducible ⇒ same verdict on the SAME environment only.
 - Redaction (if any) is best-effort. Independence level stated above.
 
-## Full evidence → _groundwork/evidence/   (logs/manifest by link, not inlined)
+## Full evidence → _groundwork/runs/run-<id>/   (logs/manifest by link, not inlined)
 ```
 `LOCAL_CHECK` must never be presented as a pass. Put only "summary + why the evidence is
 credible" in the body; link the raw logs/manifest.
+
+If `_groundwork/README.md` records an **output profile** (language/format, set by
+/groundwork:architect), write `_report.md` in that language. Otherwise use the conversation
+language.
 
 ## Collect (automatic) → feedback (separate skill)
 

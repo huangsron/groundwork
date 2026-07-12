@@ -11,36 +11,81 @@
   ASCII-only.
 
 .PARAMETER Manifest          path to manifest.json from verify.ps1
-.PARAMETER Repo              GitHub "owner/name"
-.PARAMETER SkillVersion      default "0.1.0"
+.PARAMETER Repo              GitHub "owner/name"; default read from plugin-root feedback.config.json
+.PARAMETER SkillVersion      default: read from the plugin's .claude-plugin/plugin.json
 .PARAMETER ExpectedVsActual  one-line description
-.PARAMETER LabelPrefix       default "skill:"
+.PARAMETER LabelPrefix       default read from feedback.config.json (fallback "skill:")
+.PARAMETER FalseVerdict      pass 1 when publishing a human-confirmed false verdict (forwarded to collect.ps1;
+                             without it a PASS-that-was-wrong run never triggers publishing)
 #>
 param(
   [Parameter(Mandatory=$true)][string]$Manifest,
-  [string]$Repo = "<owner/repo>",
-  [string]$SkillVersion = "0.1.0",
+  [string]$Repo = "",
+  [string]$SkillVersion = "",
   [string]$ExpectedVsActual = "",
-  [string]$LabelPrefix = "skill:"
+  [string]$LabelPrefix = "",
+  [int]$FalseVerdict = 0
 )
 $ErrorActionPreference = "Stop"
 
+# defaults come from plugin-root feedback.config.json (repo, label prefix, mode, cooldown)
+$cfg = $null
+try { $cfg = Get-Content (Join-Path $PSScriptRoot "..\..\feedback.config.json") -Raw | ConvertFrom-Json } catch {}
+if (-not $Repo -and $cfg -and $cfg.feedback_repo)               { $Repo = $cfg.feedback_repo }
+if (-not $LabelPrefix) { $LabelPrefix = $(if ($cfg -and $cfg.feedback_label_prefix) { $cfg.feedback_label_prefix } else { "skill:" }) }
+$mode = $(if ($cfg -and $cfg.feedback_mode) { $cfg.feedback_mode } else { "draft" })
+$cooldownDays = 0
+if ($cfg -and $cfg.feedback_cooldown_days) { try { $cooldownDays = [int]$cfg.feedback_cooldown_days } catch {} }
+
+if ($mode -eq "off") { Write-Host "feedback_mode=off (feedback.config.json): publishing disabled."; exit 0 }
+if (-not $Repo -or $Repo -eq "<owner/repo>") {
+  Write-Host "No target repo: set feedback_repo in feedback.config.json or pass -Repo owner/name." -ForegroundColor Yellow
+  exit 1
+}
+
 function Redact([string]$s) {
   if ($null -eq $s) { return "" }
-  $s = [regex]::Replace($s, '[A-Za-z]:\\[^\s"]+', '<path>')
-  $s = [regex]::Replace($s, '/(home|Users)/[^\s"]+', '<path>')
+  # allow spaces inside path segments ("C:\Users\John Smith\...") -- stopping at whitespace leaks the tail
+  $s = [regex]::Replace($s, '[A-Za-z]:\\[^<>:"|?*\r\n]+', '<path>')
+  $s = [regex]::Replace($s, '/(home|Users)/[^<>:"|?*\r\n]+', '<path>')
   $s = [regex]::Replace($s, '\b\d{1,3}(\.\d{1,3}){3}\b', '<ip>')
   $s = [regex]::Replace($s, '(?i)(password|secret|token|api[_-]?key|bearer)\s*[:=]\s*\S+', '$1=<redacted>')
   return $s
 }
 
 # reuse the collector to build the redacted record (do NOT append again; verify already collected)
-$rec = & "$PSScriptRoot\collect.ps1" -Manifest $Manifest -SkillVersion $SkillVersion -NoAppend | ConvertFrom-Json
+$colArgs = @{ Manifest = $Manifest; NoAppend = $true }
+if ($SkillVersion) { $colArgs.SkillVersion = $SkillVersion }
+if ($FalseVerdict -gt 0) { $colArgs.FalseVerdict = $FalseVerdict }
+$rec = & "$PSScriptRoot\collect.ps1" @colArgs | ConvertFrom-Json
 
-$triggered = ($rec.verdict -in @("FAIL","INCONCLUSIVE")) -or ($rec.crash_detected -eq $true) -or ([int]$rec.false_verdict -gt 0)
+# ERROR (harness itself failed) is improvement data too; BLOCKED is an env gap the user fixes locally
+$triggered = ($rec.verdict -in @("FAIL","INCONCLUSIVE","ERROR")) -or ($rec.crash_detected -eq $true) -or ([int]$rec.false_verdict -gt 0)
 if (-not $triggered) {
   Write-Host "No feedback trigger (verdict=$($rec.verdict), crash=$($rec.crash_detected), false_verdict=$($rec.false_verdict)). Nothing to publish."
   exit 0
+}
+
+# cooldown: same signature already ledgered within N days -> suggest commenting, not a new issue
+if ($cooldownDays -gt 0) {
+  try {
+    # derive the ledger the same way collect.ps1 does (from the manifest's project dir) --
+    # a custom -RecordsDir would break a records-dir-relative guess
+    $mRaw = Get-Content -LiteralPath $Manifest -Raw | ConvertFrom-Json
+    $pDir = if ($mRaw.project_root) { $mRaw.project_root }
+            elseif ($mRaw.project)  { Split-Path $mRaw.project -Parent }
+            else                    { Split-Path $Manifest -Parent }
+    $ledger = Join-Path $pDir "_groundwork\feedback\ledger.jsonl"
+    if (Test-Path -LiteralPath $ledger) {
+      $cut = (Get-Date).AddDays(-$cooldownDays)
+      $dup = Get-Content -LiteralPath $ledger | ForEach-Object { $_ | ConvertFrom-Json } |
+             Where-Object { $_.signature -eq $rec.signature -and [datetime]$_.timestamp -gt $cut } |
+             Select-Object -First 2
+      if (@($dup).Count -gt 1) {   # >1: this run's own record plus an earlier one
+        Write-Host ("COOLDOWN: sig {0} already recorded within {1} days -- prefer commenting on the existing issue (see dedup search below)." -f $rec.signature, $cooldownDays) -ForegroundColor Yellow
+      }
+    }
+  } catch {}
 }
 
 $dir   = Split-Path $Manifest -Parent

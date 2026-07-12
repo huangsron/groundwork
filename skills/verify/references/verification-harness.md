@@ -31,15 +31,16 @@ If no role separation happened, the result is `LOCAL_CHECK`, not `PASS`.
 PASS =
   source_commit matches the approved integration commit
   AND working tree is clean (no uncommitted edits)
-  AND verification_harness hash matches the approved harness
+  AND harness identity (hash) recorded for audit
   AND clean build exit code == 0
   AND required artifacts are FRESH (mtime/hash changed this run, not stale)
   AND every required smoke gate passes
   AND no unapproved dependency or scope change
 ```
 
-Anything else is `FAIL` or `BLOCKED` (missing access/hardware/intranet/license — never
-disguised as a product error).
+Any shortfall downgrades per the contract: `LOCAL_CHECK` (gates met, but not independent / not
+clean / commit mismatch), `INCONCLUSIVE` (evidence ambiguous), `FAIL` (a gate failed), or
+`BLOCKED` (missing access/hardware/intranet/license — never disguised as a product error).
 
 ## Verifier procedure
 
@@ -80,12 +81,12 @@ so the run is traceable to the approval. It also records the harness's own SHA-2
 (`harness_hash`) for audit. Map the approved **success level** to parameters: "compiles" →
 omit `-Exe` (no launch gate); "launches" → pass `-Exe` (+ optional `-ExpectedWindowTitle`).
 
-**Exit codes:** 0 = `PASS` or `LOCAL_CHECK`; 1 = `FAIL` / `INCONCLUSIVE` / `ERROR`.
+**Exit codes:** 0 = `PASS` or `LOCAL_CHECK`; 1 = `FAIL` / `INCONCLUSIVE` / `BLOCKED` / `ERROR`.
 Always read `manifest.json` `verdict` for the real distinction — a flat exit code is not the verdict.
 
 ## Reproducible harness
 
-`scripts/verify.ps1` (.NET/MSBuild) is the reference implementation: discovers MSBuild
+`adapters/windows/verify.ps1` (.NET/MSBuild) is the reference implementation: discovers MSBuild
 via `vswhere`, kills lingering app instances (avoids locked-output MSB3027), clears stale
 artifacts, builds with a real exit code via `Start-Process -Wait -PassThru` (+ `/nodeReuse:false
 /p:UseSharedCompilation=false`), enforces a parameterized GUI window/title/crash gate, records
