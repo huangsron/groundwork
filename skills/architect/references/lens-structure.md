@@ -26,6 +26,7 @@ Read-only: change nothing in the scanned project.
 [
   { "text": "one claim", "kind": "<one of: fact | inference | unknown>",
     "evidence": "file:line, or command + output",
+    "files": ["every file you actually OPENED for this claim (empty only for command-only evidence)"],
     "confidence": 0.0, "lens": "structure" }
 ]
 No prose around the JSON. An area you could not inspect is a claim with kind "unknown" —

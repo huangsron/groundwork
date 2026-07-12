@@ -1,6 +1,8 @@
-# /groundwork:plan — 重整後具體流程（草案 v2，待核准後再寫入 SKILL.md）
+# /groundwork:plan — 重整後具體流程（草案 v2）
 
-> 狀態：草案 / staging。尚未寫入 `~/.claude/skills//groundwork:plan/`。
+> **狀態：SUPERSEDED（歷史草稿，勿照此實作）** — 本文的 `_buildfix/` 目錄與 S0–S7 編號檔
+> （含 `07_approval.md`）已被現行設計取代：產物一律在 `_groundwork/`（`_plan.md` ＋
+> `_manifest.json` 核准記錄），流程見 `skills/plan/SKILL.md`。僅留作設計脈絡。
 > 原則不變：全程**唯讀、不改任何產品碼**，止於交付可核准的計畫。
 > v2 自我精修：S2 補「怎麼抓」配方＋白話總結；每步加「完成判準」；釐清回退歸屬；S3 交叉引用既有 `dependency-probes.md` 不重複。
 

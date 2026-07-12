@@ -38,8 +38,9 @@ PASS =
   AND no unapproved dependency or scope change
 ```
 
-Anything else is `FAIL` or `BLOCKED` (missing access/hardware/intranet/license — never
-disguised as a product error).
+Any shortfall downgrades per the contract: `LOCAL_CHECK` (gates met, but not independent / not
+clean / commit mismatch), `INCONCLUSIVE` (evidence ambiguous), `FAIL` (a gate failed), or
+`BLOCKED` (missing access/hardware/intranet/license — never disguised as a product error).
 
 ## Verifier procedure
 
@@ -85,7 +86,7 @@ Always read `manifest.json` `verdict` for the real distinction — a flat exit c
 
 ## Reproducible harness
 
-`scripts/verify.ps1` (.NET/MSBuild) is the reference implementation: discovers MSBuild
+`adapters/windows/verify.ps1` (.NET/MSBuild) is the reference implementation: discovers MSBuild
 via `vswhere`, kills lingering app instances (avoids locked-output MSB3027), clears stale
 artifacts, builds with a real exit code via `Start-Process -Wait -PassThru` (+ `/nodeReuse:false
 /p:UseSharedCompilation=false`), enforces a parameterized GUI window/title/crash gate, records

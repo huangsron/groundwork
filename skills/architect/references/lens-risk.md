@@ -29,6 +29,7 @@ across stacks (.NET type initializers, JVM static blocks, native dlopen at load,
   { "text": "one claim (prefix launch blockers with 'HIGH launch-crash risk:')",
     "kind": "<one of: fact | inference | unknown>",
     "evidence": "file:line, or command + output",
+    "files": ["every file you actually OPENED for this claim (empty only for command-only evidence)"],
     "confidence": 0.0, "lens": "risk" }
 ]
 No prose around the JSON. An area you could not inspect is a claim with kind "unknown" —

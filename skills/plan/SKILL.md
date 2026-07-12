@@ -35,10 +35,24 @@ bother me" does NOT waive the approval gate.
 | # | Phase | Output / gate |
 |---|-------|---------------|
 | 0 | **Contract** | Scope; success level (compiles / packages / launches / core-flow works — pick one, don't conflate); allowed & forbidden changes; search roots |
-| 1 | **Inventory + baseline** (team, READ-ONLY) | `INVENTORY_COMPLETE` (see below) |
+| 1 | **Inventory + baseline** (READ-ONLY) | `INVENTORY_COMPLETE` (see below) |
 | 2 | **Plan** | Per blocker: root cause + evidence, files to change, predicted result, rollback, verification gate, risk, restoration choice |
 | 3 | **Independent review** | Reviewer ≠ planner: missed deps, premature stubs, more faithful restorations, risks |
-| 4 | **Approval handoff** | Plan record ready for the user to approve; nothing executes here |
+| 4 | **Approval handoff** | `_groundwork/_plan.md` + `_groundwork/_manifest.json` (see below); nothing executes here |
+
+**Phase 1 how.** Start solo. First read `_groundwork/` if /groundwork:architect ran (its claims
+are input evidence — NOT a substitute for the probes below) and recent
+`_groundwork/feedback/ledger.jsonl` records for this project (a recurring same-signature failure
+means the last plan missed the root cause — plan for THAT). Spawn parallel read-only subagents
+(one per probe layer of `references/dependency-probes.md`) only when the dependency closure is
+too large for one pass. All evidence lands under `_groundwork/`.
+
+**Phase 3 how.** Spawn one reviewer subagent: "Read `_groundwork/_plan.md` and the dependency
+inventory. Find: missed dependencies, premature stubs, more faithful restorations, understated
+risks. Return a numbered list with evidence." No subagent support → re-walk the plan yourself
+against the stop conditions in `references/dependency-probes.md`, fix-by-fix, as a hostile
+reviewer. Either way: every review finding becomes a plan revision or an Open question BEFORE
+the approval handoff — never silently dropped.
 
 `INVENTORY_COMPLETE`: every declared & transitive dependency classified
 (`resolved / optional / runtime-only / missing-approved`); every missing one has a search
@@ -54,9 +68,24 @@ real source / original binary  >  official package/artifact  >  provenance-check
 
 ## Approval record (handoff to /groundwork:verify)
 
-The plan the user approves must be referenceable: a plan id/hash, the scope, the chosen
-success level, allowed paths, and the verification harness that will judge it. Silence,
-generic autonomy, or past authorization do NOT count as approval.
+The plan the user approves must be referenceable. After the user decides, write
+`_groundwork/_manifest.json`:
+
+```json
+{ "plan_id": "<id or content hash of _plan.md>",
+  "scope": "<one line>",
+  "success_level": "compiles|packages|launches|core-flow",
+  "allowed_paths": ["..."],
+  "approval": { "decision": "approved|approved_except|rejected",
+                "approved_except": ["F-03"],
+                "by": "<user>", "at": "<ISO-8601>" },
+  "harness": "<adapter path or 'contract.md direct'>" }
+```
+
+/groundwork:verify reads this as its entry gate: fixes listed in `approved_except` are NOT
+approved; `decision: rejected` → revise the plan (address the rejection reason), re-run Phase 3
+review, and hand off again with a NEW plan_id. Silence, generic autonomy, or past authorization
+do NOT count as approval.
 
 ## Rationalizations — STOP
 

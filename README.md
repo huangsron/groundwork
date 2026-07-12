@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-plugin-5A3FD6)](https://code.claude.com/docs/en/plugins)
 ![Platform](https://img.shields.io/badge/adapter-windows%20(.NET)-0078D6)
-![Status](https://img.shields.io/badge/status-v0.1.0-lightgrey)
+![Status](https://img.shields.io/badge/status-v0.5.0-lightgrey)
 
 接手陌生或遺留專案的工具集：**理解系統 → 先盤依賴並計畫（核准後才動手）→ 獨立且可重複地驗證**。修復編譯只是其中一項。
 
@@ -36,8 +36,9 @@ claude --plugin-dir "E:/work/ai/groundwork"
 各 skill 讀前一個的產物、寫自己的，全部放在 `<專案>/_groundwork/`：
 ```
 architect → README + 01~06 文件集 + PROJECT_OVERVIEW_REPORT.md, _claims.json
-plan      → 讀 architect 文件集 → _plan.md, _manifest.json（含核准記錄）
-verify    → 讀 _manifest.json → _report.md ＋ runs/run-<id>/{manifest.json, logs/} ＋ feedback/ledger.jsonl
+            （Phase 0 可選輸出格式：full 完整文件集 ⭐ / compact 精簡單檔 / full+exec 加執行摘要；語言預設跟隨對話）
+plan      → 讀 architect 文件集 → _plan.md, _manifest.json（核准記錄 schema 見 plan SKILL）
+verify    → 讀 _manifest.json（entry gate）→ _report.md ＋ runs/run-<id>/{manifest.json, logs/} ＋ feedback/ledger.jsonl
 ```
 - **報告**（給人讀，保留）：architect 文件集（`README.md`、`01_PROJECT_OVERVIEW.md`…`PROJECT_OVERVIEW_REPORT.md`）、`_plan.md`、`_report.md` 直接在 `_groundwork/`。
 - **執行記錄/量化**（每次一個，可依策略清）：`_groundwork/runs/run-<utc>-<rand>/`（`manifest.json` ＋ `logs/`）；跨次狀態 `runs/iteration-state.json`。
@@ -51,7 +52,8 @@ verify    → 讀 _manifest.json → _report.md ＋ runs/run-<id>/{manifest.json
 powershell -ExecutionPolicy Bypass -File adapters\windows\verify.ps1 `
   -Project <csproj> [-Solution <sln>] [-Exe <exe>] [-PlanId <id>] [-Independent]
 ```
-- 非獨立 / 工作樹髒 / commit 不符 → verdict = **`LOCAL_CHECK`**（「尚未獨立確認」的狀態，**不是 PASS**）。
+- 非獨立 / 工作樹髒或**無法確認**（無 git）/ commit 不符 → verdict = **`LOCAL_CHECK`**（「尚未獨立確認」的狀態，**不是 PASS**）。
+- 非 Windows 環境：照 `contract.md` 的 **Minimal adapter checklist** 用該環境工具實作（manifest/ledger schema、signature 演算法皆已在 contract 內固定）。
 - 可重複性僅限**同環境**；independence 為程序性而非密碼學級。
 - 其餘參數見 `verify.ps1` 註解；完整判準見 `contract.md`。
 

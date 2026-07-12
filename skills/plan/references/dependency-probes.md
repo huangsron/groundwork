@@ -25,6 +25,15 @@ disposition. READ-ONLY and parallelizable across a team.
    matrix, required services/DB/network. A managed assembly that P/Invokes a missing native
    DLL loads fine but throws on first use — probe this, don't assume.
 
+The layer names are universal; the tool examples above are .NET-flavored. Equivalents elsewhere:
+
+| Layer | .NET example above | Other ecosystems |
+|-------|--------------------|------------------|
+| 3 Binary | `dumpbin /dependents` | `ldd` / `otool -L` / `readelf -d`; jar manifests Class-Path |
+| 4 Binding | bindingRedirect/GAC | JVM classpath order / shading; Python venv vs site-packages; node resolution order |
+| 5 Toolchain | global.json, targeting pack | `.nvmrc`/`engines`, `pyproject` requires-python, `rust-toolchain.toml`, JDK version |
+| caches (search step 4) | NuGet global | `~/.npm`, `~/.m2`, pip cache, `~/.cargo/registry` |
+
 ## Missing-dependency search order (do ALL applicable BEFORE deciding to stub)
 
 1. This repo + sibling directories + in-repo backups / old build outputs (`bin/`, `obj/`) /

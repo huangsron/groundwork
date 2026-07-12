@@ -37,10 +37,10 @@ justify a skill edit. Do not endlessly tweak prompts.
 
 ## Objective triggers — when the ledger says "fix a skill" (priority order)
 
-1. `false_verdict = true` → **highest**; fix the verify/verdict contract first.
-2. `stub_vs_real = stub` AND `verdict = PASS` → treat as a false verdict.
+1. `false_verdict > 0` (ledger int; set by a human correction record — see contract.md) → **highest**; fix the verify/verdict contract first.
+2. a stubbed dependency (plan record: disposition = stub) AND `verdict = PASS` → treat as a false verdict (this is judged from the plan record + manifest; it is not a ledger field).
 3. same `signature`, `error_delta ≥ 0` for 2 consecutive runs → plan/diagnosis missed the root cause.
-4. `iterations_to_pass` above baseline AND repeating one `category/signature` → skill lacks a convergence rule.
+4. `iteration` at PASS above baseline AND repeating one `category/signature` → skill lacks a convergence rule.
 5. `error_delta` drops but a NEW `category` appears → maybe only surface errors removed; verify by hand.
 
 Routing: a known-required root cause absent from architect/plan → fix architect/plan; root cause
