@@ -152,7 +152,10 @@ A scanner that dies or returns nothing → its lens goes to "Not analyzed / unkn
 fill the gap by guessing.
 
 ### Phase 2 — cross-compare
-Send all claims **plus the baseline inventory** to the synthesizer subagent.
+Send to the synthesizer subagent: all claims, the baseline inventory (with the rule-based
+exclusion list), **and the Phase-0 record** (project root, output profile, language,
+defaulted-or-not) — the synthesizer is the sole writer of the doc set and the recorded profile,
+so it must receive them explicitly.
 
 **Coverage reconciliation (mechanical, first).** Union every path in every claim's `files`
 array (fallback for a scanner that ignored the field: paths parsed out of its `evidence`
@@ -186,7 +189,8 @@ nothing → its claims keep no verdict and are treated as unverifiable (no `verd
 SendMessage the SAME synthesizer (it keeps its Phase-2 context), attaching all verdicts plus
 any targeted-scan claims from Phase 2. If the harness cannot continue a finished subagent,
 spawn a fresh synthesizer with the complete input instead: merged claims + baseline inventory
-+ verdicts + targeted-scan claims.
++ verdicts + targeted-scan claims + the Phase-0 record (project root, output profile,
+language, defaulted-or-not).
 Integration rules: `refuted` → drop from the report or downgrade to unknown, and note
 "adversarial verification refuted N claims" in the credibility marks; `unverifiable` → keep,
 tagged unknown/low-confidence. It writes the full `_groundwork/` documentation set (see

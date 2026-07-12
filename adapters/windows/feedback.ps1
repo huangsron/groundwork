@@ -72,7 +72,9 @@ if ($cooldownDays -gt 0) {
     # derive the ledger the same way collect.ps1 does (from the manifest's project dir) --
     # a custom -RecordsDir would break a records-dir-relative guess
     $mRaw = Get-Content -LiteralPath $Manifest -Raw | ConvertFrom-Json
-    $pDir = if ($mRaw.project) { Split-Path $mRaw.project -Parent } else { Split-Path $Manifest -Parent }
+    $pDir = if ($mRaw.project_root) { $mRaw.project_root }
+            elseif ($mRaw.project)  { Split-Path $mRaw.project -Parent }
+            else                    { Split-Path $Manifest -Parent }
     $ledger = Join-Path $pDir "_groundwork\feedback\ledger.jsonl"
     if (Test-Path -LiteralPath $ledger) {
       $cut = (Get-Date).AddDays(-$cooldownDays)

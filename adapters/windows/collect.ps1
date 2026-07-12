@@ -46,8 +46,12 @@ function Redact([string]$s) {
   return $s
 }
 
-$m = Get-Content $Manifest -Raw | ConvertFrom-Json
-$projDir = if ($m.project) { Split-Path $m.project -Parent } else { Split-Path $Manifest -Parent }
+$m = Get-Content -LiteralPath $Manifest -Raw | ConvertFrom-Json
+# project_root (git toplevel, recorded by verify.ps1) anchors the ledger to the SAME _groundwork/
+# that architect/plan use; fall back for older manifests
+$projDir = if ($m.project_root) { $m.project_root }
+           elseif ($m.project)  { Split-Path $m.project -Parent }
+           else                 { Split-Path $Manifest -Parent }
 
 # project_id: prefer git remote (owner/repo), else dir name
 $projectId = ""

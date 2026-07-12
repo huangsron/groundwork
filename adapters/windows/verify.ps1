@@ -9,8 +9,10 @@
 
   ASCII-only: Windows PowerShell 5.1 reads .ps1 as ANSI; non-ASCII comments corrupt parsing.
 
-.PARAMETER Project          .csproj (built Platform "AnyCPU").
-.PARAMETER Solution         optional .sln (built Platform "Any CPU").
+.PARAMETER Project          .csproj to build.
+.PARAMETER Solution         optional .sln.
+.PARAMETER Platform         MSBuild platform (default AnyCPU; pass x86/x64 for platform-locked
+                            legacy projects). The solution build maps "AnyCPU" -> "Any CPU".
 .PARAMETER Exe              produced exe for the GUI gate; omit to skip launch (e.g. success level "compiles").
 .PARAMETER Configuration    Debug | Release (default Debug).
 .PARAMETER NoRestore        skip the NuGet /restore pass (offline env; legacy packages.config projects restore separately anyway).
@@ -36,6 +38,7 @@ param(
   # NOTE: relative paths are resolved against $PWD immediately below -- .NET APIs
   # ([IO.File]::*, GetFullPath) do NOT follow PowerShell's Set-Location in PS 5.1
   [string]$Configuration = "Debug",
+  [string]$Platform = "AnyCPU",
   [switch]$NoRestore,
   [int]$LaunchSeconds = 20,
   [int]$MinStableSeconds = 2,
@@ -85,8 +88,17 @@ function Write-Utf8NoBom([string]$path, [string]$text) {
   [IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
 }
 
-# run records live under the project: _groundwork/runs/run-<utc>-<rand>/ (retained, policy-cleanable)
-$RunsRoot = Join-Path (Split-Path $Project -Parent) "_groundwork\runs"
+# run records live in the PROJECT ROOT's _groundwork/ (git toplevel when available, else the
+# csproj dir) -- the same _groundwork/ that architect/plan write, or nested projects would grow
+# a second tree no consumer reads
+$ProjectRoot = Split-Path $Project -Parent
+try {
+  $prevEapRoot = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+  $topDir = (git -C $ProjectRoot rev-parse --show-toplevel 2>$null)
+  if ($LASTEXITCODE -eq 0 -and $topDir) { $ProjectRoot = "$topDir".Trim() -replace '/', '\' }
+  $ErrorActionPreference = $prevEapRoot
+} catch { try { $ErrorActionPreference = $prevEapRoot } catch {} }
+$RunsRoot = Join-Path $ProjectRoot "_groundwork\runs"
 New-Item -ItemType Directory -Force -Path $RunsRoot | Out-Null
 if ([string]::IsNullOrEmpty($RecordsDir)) {
   $runId = "run-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + "-" + ([guid]::NewGuid().ToString("N").Substring(0,6))
@@ -110,7 +122,7 @@ $manifest = [ordered]@{
   plan_id=$PlanId; build_ok=$false; launch=""; window_titles=@(); window_classes=@(); crash_detected=$false
   tree_clean=$null; raw_dirty=$null; source_commit=""; expected_commit=$ExpectedCommit; commit_match=$null
   harness_hash=$harnessHash; msbuild=""; msbuild_version=""
-  configuration=$Configuration; project=$Project; solution=$Solution; exe=$Exe
+  configuration=$Configuration; platform=$Platform; project=$Project; project_root=$ProjectRoot; solution=$Solution; exe=$Exe
   artifact_fresh=$null; iteration=$iteration; errors_remaining=$null; error_delta=$null
   records_dir=$RecordsDir; limitations=$limitations
 }
@@ -229,10 +241,11 @@ public static class GwWin {
   if ($Exe -and (Test-Path -LiteralPath $Exe)) { Remove-Item -LiteralPath $Exe -Force -ErrorAction SilentlyContinue }
 
   $buildStart = Get-Date
+  $slnPlatform = if ($Platform -eq "AnyCPU") { "Any CPU" } else { $Platform }
   $csprojLog = ((Split-Path $Project -Leaf) -replace '\.csproj$','') + "-csproj.log"
-  $csErrs  = Invoke-Build $Project $csprojLog "csproj" "AnyCPU"
+  $csErrs  = Invoke-Build $Project $csprojLog "csproj" $Platform
   $slnErrs = 0
-  if ($Solution) { $slnErrs = Invoke-Build $Solution "sln.log" "sln" "Any CPU" }
+  if ($Solution) { $slnErrs = Invoke-Build $Solution "sln.log" "sln" $slnPlatform }
   $buildOK = ($csErrs -eq 0 -and $slnErrs -eq 0)
   $manifest.build_ok = $buildOK
   Add-Sum ("BUILD: {0}" -f ($(if ($buildOK) {"PASS (0 errors)"} else {"FAIL"})))

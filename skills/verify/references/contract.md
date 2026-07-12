@@ -43,7 +43,8 @@ Required fields (types): `verdict` (string enum above), `independence` (`subagen
 `build_ok` (bool), `errors_remaining` (int), `error_delta` (int|null), `iteration` (int),
 `launch` (string), `crash_detected` (bool), `tree_clean` (bool|null), `source_commit` (string),
 `expected_commit` (string), `commit_match` (bool|null), `harness_hash` (string),
-`artifact_fresh` (bool|null), `records_dir` (string), `plan_id` (string),
+`artifact_fresh` (bool|null), `records_dir` (string), `project_root` (string — the git toplevel
+when available, else the project dir; anchors `_groundwork/`), `plan_id` (string),
 `limitations` (string[] — must serialize as `[]`, never null).
 
 ## Ledger record (schema, appended per run, redacted)
@@ -108,7 +109,9 @@ source code. These patterns are incomplete — **a human must still review befor
 
 An adapter on any OS is correct when it does ALL of the following; nothing here needs PowerShell:
 
-1. **Run dir**: create `<project>/_groundwork/runs/run-<UTC yyyyMMddTHHmmssZ>-<6 random hex>/` with `logs/` inside.
+1. **Run dir**: create `<project>/_groundwork/runs/run-<UTC yyyyMMddTHHmmssZ>-<6 random hex>/` with
+   `logs/` inside. `<project>` = the git toplevel when available, else the built project's dir —
+   the SAME `_groundwork/` architect/plan write to (one tree, not one per subproject).
 2. **Cleanliness**: record `source_commit` (`git rev-parse HEAD`) and `tree_clean` from
    `git status --porcelain` at the **repo toplevel**, excluding `_groundwork/**`; git absent/failed →
    `tree_clean = null` (unknown ≠ clean).
