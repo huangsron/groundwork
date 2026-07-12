@@ -59,7 +59,7 @@ Required fields (types): `verdict` (string enum above), `independence` (`subagen
 |------|------------------------------|
 | Library | compiles; tests pass; (optional) API/ABI unchanged |
 | CLI | expected exit code; stdout matches the agreed contract |
-| **GUI** | process alive **and positive evidence of a usable app UI**: a credible top-level application window owned by the process, stable for a minimum duration, no crash/WER. *A window that is ONLY an error/MessageBox-style dialog is ambiguous → `INCONCLUSIVE`, not PASS, unless an expected title/class confirms it.* Process-alive alone is necessary, not sufficient. |
+| **GUI** | process alive **and positive evidence of a usable app UI**: a credible top-level application window owned by the process, stable for a minimum duration, no crash/WER. *A window that is ONLY an error/MessageBox-style dialog is ambiguous → `INCONCLUSIVE`, not PASS — even when its TITLE matches the expected one (error boxes carry the app's name); only a non-dialog window confirms.* Process-alive alone is necessary, not sufficient. |
 | Service | port open / health endpoint OK / startup within timeout |
 | Web | builds; server reaches readiness; HTTP smoke passes |
 | Native | links; architecture matches; runs (or emulator gate) |

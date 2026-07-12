@@ -62,8 +62,8 @@ try {
 if (-not $projectId) { $projectId = Split-Path $projDir -Leaf }
 
 # category inference (order matters; taxonomy defined in skills/verify/references/contract.md)
+# -FalseVerdict (a human-confirmed correction) is the ONLY source of false_verdict
 $false_verdict = $FalseVerdict
-if ($false_verdict -le 0) { try { $false_verdict = [int]$m.false_verdict_count } catch {} }
 if ([string]::IsNullOrWhiteSpace($Category)) {
   if ($false_verdict -gt 0)                { $Category = "false_verdict" }
   elseif ($m.verdict -eq "BLOCKED")        { $Category = "env_blocked" }      # environment missing, not a product failure
@@ -79,9 +79,11 @@ if ([string]::IsNullOrWhiteSpace($Category)) {
 # error skeleton (redacted, normalized) for a stable signature
 # logs live under <records_dir>\logs\ -- search recursively or every build failure hashes identically
 $errPattern = ""
-if ($m.records_dir -and (Test-Path $m.records_dir)) {
-  foreach ($lg in (Get-ChildItem $m.records_dir -Recurse -Filter "*.log" -ErrorAction SilentlyContinue)) {
-    $hit = Select-String -Path $lg.FullName -Pattern ": error " -SimpleMatch -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($m.records_dir -and (Test-Path -LiteralPath $m.records_dir)) {
+  foreach ($lg in (Get-ChildItem -LiteralPath $m.records_dir -Recurse -Filter "*.log" -ErrorAction SilentlyContinue)) {
+    # compiler-error shape only (same regex as verify.ps1): plain ': error ' also matches
+    # warning text like "#warning: 'TODO: error handling'" and would hijack the signature
+    $hit = Select-String -LiteralPath $lg.FullName -Pattern ':\s+(fatal\s+)?error(\s+[A-Za-z]+\d+)?\s*:' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($hit) { $errPattern = $hit.Line.Trim(); break }
   }
 }

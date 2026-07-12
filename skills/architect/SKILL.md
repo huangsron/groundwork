@@ -42,14 +42,16 @@ Write to `<project>/_groundwork/`:
 | `02_ARCHITECTURE.md` | C4-style architecture diagrams, component relations, main runtime flows, data model — all diagrams in Mermaid |
 | `03_READINESS_CHECKLIST.md` | launch preconditions, health checks, how to read PASS/FAIL/WARN |
 | `04_RISK_REGISTER.md` | HIGH/MEDIUM/LOW risks, impact, suggested handling; lead with a traffic-light table; each risk carries a credibility tag (`direct-read` / `inference` / `unknown`) |
-| `05_EVIDENCE_INDEX.md` | every important conclusion → its source-code / SQL / config-file evidence; ends with a **Coverage** section: evidence touched X of Y inventoried files, declared-skipped list, remaining blind-spot list |
+| `05_EVIDENCE_INDEX.md` | every important conclusion → its source-code / SQL / config-file evidence; ends with a **Coverage** section: evidence touched X of Y inventoried files, excluded-by-rule list (vendored/generated dirs), declared-skipped list, remaining blind-spot list |
 | `06_DEV_ENVIRONMENT.md` | local verification environment; docker/init/setup scripts and how to run them |
 | `PROJECT_OVERVIEW_REPORT.md` | the complete single-file report (full reading version) |
 | `_claims.json` | machine handoff: `{ generated_at, source_commit, profile, claims: [...] }` — header first (staleness detection: consumers compare `source_commit` to HEAD and warn on mismatch), then one list of claims, each `{ text, kind: fact\|inference\|unknown, evidence, files: [paths actually opened], confidence, lens, corroboration: agreed\|conflicted\|single, verdict: confirmed\|refuted\|unverifiable }` — `verdict` only on claims that went through adversarial verification. (One file — not separate claims/verdicts/audit files.) |
 
-**Re-run behavior:** if `_groundwork/` already exists, overwrite the whole set in place (it is
-generated output, and the header records vintage) — never leave a mixed-vintage set; if the user
-wants the old one, they move it first.
+**Re-run behavior:** if `_groundwork/` already exists, first DELETE the architect-owned files
+(`README.md`, `01…06`, `PROJECT_OVERVIEW_REPORT.md`, `EXEC_SUMMARY.md`, `_claims.json`) so a
+narrower profile can't leave stale docs behind, then write the new set — never a mixed-vintage
+set. Never touch the other skills' artifacts (`_plan.md`, `_manifest.json`, `_report.md`,
+`runs/`, `feedback/`). If the user wants the old set, they move it first.
 
 Style: professional, clear, maintainable. Not a chat log or an analysis narrative; no draft
 tone, no mojibake, no repeated sections. Absorb important existing content fully — don't

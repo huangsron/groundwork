@@ -41,9 +41,10 @@ bother me" does NOT waive the approval gate.
 | 4 | **Approval handoff** | `_groundwork/_plan.md` + `_groundwork/_manifest.json` (see below); nothing executes here |
 
 **Phase 1 how.** Start solo. First read `_groundwork/` if /groundwork:architect ran (its claims
-are input evidence — NOT a substitute for the probes below) and recent
-`_groundwork/feedback/ledger.jsonl` records for this project (a recurring same-signature failure
-means the last plan missed the root cause — plan for THAT). Spawn parallel read-only subagents
+are input evidence — NOT a substitute for the probes below; compare `_claims.json`'s
+`source_commit` header to HEAD and treat mismatched claims as possibly stale — say so in the
+plan) and recent `_groundwork/feedback/ledger.jsonl` records for this project (a recurring
+same-signature failure means the last plan missed the root cause — plan for THAT). Spawn parallel read-only subagents
 (one per probe layer of `references/dependency-probes.md`) only when the dependency closure is
 too large for one pass. All evidence lands under `_groundwork/`.
 
@@ -139,3 +140,6 @@ in another fix.)
 ```
 Every fix needs all six fields or it isn't approvable. Link the full dependency matrix / evidence
 into `_groundwork/`; don't inline diffs or long alternatives.
+
+Write `_plan.md` in the language recorded in `_groundwork/README.md`'s profile line (set by
+/groundwork:architect) — otherwise the conversation language.

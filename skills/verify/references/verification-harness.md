@@ -31,7 +31,7 @@ If no role separation happened, the result is `LOCAL_CHECK`, not `PASS`.
 PASS =
   source_commit matches the approved integration commit
   AND working tree is clean (no uncommitted edits)
-  AND verification_harness hash matches the approved harness
+  AND harness identity (hash) recorded for audit
   AND clean build exit code == 0
   AND required artifacts are FRESH (mtime/hash changed this run, not stale)
   AND every required smoke gate passes
@@ -81,7 +81,7 @@ so the run is traceable to the approval. It also records the harness's own SHA-2
 (`harness_hash`) for audit. Map the approved **success level** to parameters: "compiles" →
 omit `-Exe` (no launch gate); "launches" → pass `-Exe` (+ optional `-ExpectedWindowTitle`).
 
-**Exit codes:** 0 = `PASS` or `LOCAL_CHECK`; 1 = `FAIL` / `INCONCLUSIVE` / `ERROR`.
+**Exit codes:** 0 = `PASS` or `LOCAL_CHECK`; 1 = `FAIL` / `INCONCLUSIVE` / `BLOCKED` / `ERROR`.
 Always read `manifest.json` `verdict` for the real distinction — a flat exit code is not the verdict.
 
 ## Reproducible harness
